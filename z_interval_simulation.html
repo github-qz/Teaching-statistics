@@ -66,7 +66,7 @@
       font-size: 0.95rem;
     }
 
-    input, select, button {
+    input, button {
       width: 100%;
       padding: 10px 12px;
       border-radius: 10px;
@@ -149,6 +149,7 @@
 
     .good { color: var(--good); font-weight: 700; }
     .bad { color: var(--bad); font-weight: 700; }
+
     .note {
       margin-top: 14px;
       font-size: 0.92rem;
@@ -161,9 +162,11 @@
     <div class="card">
       <h1>Interactive Z-Interval Generator</h1>
       <p>
-        This app simulates repeated samples from a normal population. The sample means stay fixed until you click
-        <strong>Generate new samples</strong>. Moving the sliders for <strong>n</strong>, <strong>confidence level</strong>, or
-        <strong>σ</strong> updates the confidence intervals instantly using the same simulated sample means.
+        This app simulates repeated samples from a normal population and constructs
+        <strong>z confidence intervals for the population mean with known population standard deviation</strong>.
+        The plot scale stays fixed for a given simulated sample set so you can compare interval widths directly.
+        Changing <strong>confidence level</strong> or <strong>σ</strong> updates the intervals without regenerating the sample means.
+        Changing <strong>μ</strong>, <strong>n</strong>, or <strong>number of samples</strong> generates a new simulation.
       </p>
 
       <div class="grid">
@@ -212,11 +215,15 @@
           <div class="label">Capture rate</div>
           <div id="captureRate" class="value">—</div>
         </div>
+        <div class="stat">
+          <div class="label">Average margin of error</div>
+          <div id="avgMargin" class="value">—</div>
+        </div>
       </div>
 
       <canvas id="plot"></canvas>
       <div class="note">
-        Changing confidence level or σ updates only the interval widths for the same simulated sample means. Changing μ, n, or the number of samples generates a new simulation.
+        Each interval is \( \bar{x} \pm z_{\alpha/2}\,\sigma/\sqrt{n} \). Green intervals contain the true mean μ; red intervals do not.
       </div>
     </div>
 
@@ -229,6 +236,7 @@
             <th>Sample mean</th>
             <th>Lower bound</th>
             <th>Upper bound</th>
+            <th>Margin of error</th>
             <th>Contains μ?</th>
           </tr>
         </thead>
@@ -300,8 +308,9 @@
       document.getElementById('sigmaStat').textContent = state.sigma.toFixed(1);
     }
 
-    function generateBaseSamples() {
-      if (!Number.isFinite(state.mu) || !Number.isInteger(state.n) || state.n <= 0 || !Number.isInteger(state.numSamples) || state.numSamples <= 0 || !Number.isFinite(state.sigma) || state.sigma <= 0) {
+    function generateSampleMeans() {
+      if (!Number.isFinite(state.mu) || !Number.isInteger(state.n) || state.n < 2 ||
+          !Number.isInteger(state.numSamples) || state.numSamples <= 0) {
         alert('Please enter valid inputs.');
         return false;
       }
@@ -318,13 +327,14 @@
     }
 
     function recomputeIntervals() {
-      if (!Number.isFinite(state.mu) || !Number.isInteger(state.n) || state.n <= 0 || !Number.isFinite(state.sigma) || state.sigma <= 0) {
+      if (!Number.isFinite(state.mu) || !Number.isInteger(state.n) || state.n < 2 ||
+          !Number.isFinite(state.sigma) || state.sigma <= 0 || state.sampleMeans.length === 0) {
         return;
       }
 
       const zCrit = inverseNormalCDF(1 - (1 - state.conf) / 2);
-      const se = state.sigma / Math.sqrt(state.n);
-      const margin = zCrit * se;
+      const margin = zCrit * state.sigma / Math.sqrt(state.n);
+      document.getElementById('zValue').textContent = zCrit.toFixed(4);
 
       state.intervals = state.sampleMeans.map((xbar, i) => {
         const lower = xbar - margin;
@@ -334,11 +344,11 @@
           xbar,
           lower,
           upper,
+          margin,
           contains: lower <= state.mu && state.mu <= upper
         };
       });
 
-      // set fixed range only once (after regeneration)
       if (!state.fixedRange && state.intervals.length) {
         const minX = Math.min(...state.intervals.map(d => d.lower), state.mu);
         const maxX = Math.max(...state.intervals.map(d => d.upper), state.mu);
@@ -349,11 +359,17 @@
         };
       }
 
-      document.getElementById('zValue').textContent = zCrit.toFixed(4);
       const captured = state.intervals.filter(d => d.contains).length;
       document.getElementById('captured').textContent = `${captured} / ${state.intervals.length}`;
       document.getElementById('captureRate').textContent = state.intervals.length
         ? `${(100 * captured / state.intervals.length).toFixed(1)}%`
+        : '—';
+
+      const avgMargin = state.intervals.length
+        ? state.intervals.reduce((sum, d) => sum + d.margin, 0) / state.intervals.length
+        : NaN;
+      document.getElementById('avgMargin').textContent = Number.isFinite(avgMargin)
+        ? avgMargin.toFixed(4)
         : '—';
 
       renderTable();
@@ -370,6 +386,7 @@
           <td>${d.xbar.toFixed(4)}</td>
           <td>${d.lower.toFixed(4)}</td>
           <td>${d.upper.toFixed(4)}</td>
+          <td>${d.margin.toFixed(4)}</td>
           <td class="${d.contains ? 'good' : 'bad'}">${d.contains ? 'Yes' : 'No'}</td>
         `;
         tbody.appendChild(tr);
@@ -478,7 +495,7 @@
       readControls();
       updateSliderLabels();
       state.fixedRange = null;
-      if (generateBaseSamples()) {
+      if (generateSampleMeans()) {
         recomputeIntervals();
       }
     }
