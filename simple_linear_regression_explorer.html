@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simple Linear Regression Explorer</title>
+  <style>
+    body { font-family: Arial; margin:0; padding:20px; background:#f5f7fb; }
+    .card { background:white; padding:20px; border-radius:12px; margin-bottom:20px; }
+    button { margin:5px; padding:10px; }
+    #plot { width:100%; height:600px; border:1px solid #ccc; cursor:crosshair; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>Simple Linear Regression Explorer</h2>
+
+  <label>Slope</label>
+  <input id="slope" type="range" min="-3" max="3" step="0.01" value="1">
+  <span id="slopeVal">1</span>
+
+  <label>Intercept</label>
+  <input id="intercept" type="range" min="-10" max="10" step="0.01" value="0">
+  <span id="interceptVal">0</span>
+
+  <br>
+  <button id="toggleTrialLine">Show movable line</button>
+  <button id="toggleLSLine">Show LS line</button>
+  <button id="toggleSquares">Show squares</button>
+  <button id="clearBtn">Clear</button>
+
+  <p><span style="color:blue;font-weight:bold">Movable line:</span> <span id="eqTrial"></span> | <span id="sseTrial" style="color:red"></span></p>
+  <p><span style="color:purple;font-weight:bold">LS line:</span> <span id="eqLS"></span> | <span id="sseLS" style="color:orange"></span></p>
+
+  <canvas id="plot"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById("plot");
+const ctx = canvas.getContext("2d");
+
+let state = {
+  points: [],
+  slope:1,
+  intercept:0,
+  showTrialLine:false,
+  showSquares:false,
+  showLS:false,
+  ls:null
+};
+
+function resize(){
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+  draw();
+}
+window.addEventListener("resize", resize);
+resize();
+
+function addPoint(x,y){
+  state.points.push({x,y});
+}
+
+function getBounds(){
+  if(state.points.length===0) return {xMin:-10,xMax:10,yMin:-10,yMax:10};
+  let xs=state.points.map(p=>p.x);
+  let ys=state.points.map(p=>p.y);
+  return {
+    xMin:Math.min(...xs)-2,
+    xMax:Math.max(...xs)+2,
+    yMin:Math.min(...ys)-2,
+    yMax:Math.max(...ys)+2
+  };
+}
+
+function toPx(x,y,b){
+  return {
+    x:(x-b.xMin)/(b.xMax-b.xMin)*canvas.width,
+    y:canvas.height-(y-b.yMin)/(b.yMax-b.yMin)*canvas.height
+  }
+}
+
+function computeLS(){
+  if(state.points.length<2) return null;
+  let xbar = state.points.reduce((s,p)=>s+p.x,0)/state.points.length;
+  let ybar = state.points.reduce((s,p)=>s+p.y,0)/state.points.length;
+  let sxx=0,sxy=0;
+  state.points.forEach(p=>{
+    sxx+=(p.x-xbar)**2;
+    sxy+=(p.x-xbar)*(p.y-ybar);
+  });
+  let slope=sxy/sxx;
+  let intercept=ybar-slope*xbar;
+  return {slope,intercept};
+}
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  let b=getBounds();
+
+  state.points.forEach(p=>{
+    let pt=toPx(p.x,p.y,b);
+    ctx.beginPath();
+    ctx.arc(pt.x,pt.y,4,0,2*Math.PI);
+    ctx.fill();
+  });
+
+  if(state.showTrialLine){
+    drawLine(state.slope,state.intercept,b,"blue");
+  }
+
+  if(state.showLS){
+    state.ls=computeLS();
+    if(state.ls){
+      drawLine(state.ls.slope,state.ls.intercept,b,"purple");
+    }
+  }
+
+  if(state.showSquares){
+    if(state.showTrialLine){
+      drawSquares({slope:state.slope,intercept:state.intercept}, b, "red");
+    }
+    if(state.showLS && state.ls){
+      drawSquares(state.ls, b, "orange");
+    }
+  }
+
+  updateText();
+}
+
+function drawLine(m,b0,b,color){
+  let p1=toPx(b.xMin,m*b.xMin+b0,b);
+  let p2=toPx(b.xMax,m*b.xMax+b0,b);
+  ctx.strokeStyle=color;
+  ctx.beginPath();
+  ctx.moveTo(p1.x,p1.y);
+  ctx.lineTo(p2.x,p2.y);
+  ctx.stroke();
+}
+
+function drawSquares(line,b,color){
+  ctx.strokeStyle=color;
+  state.points.forEach(p=>{
+    let yhat=line.slope*p.x+line.intercept;
+    let p1=toPx(p.x,p.y,b);
+    let p2=toPx(p.x,yhat,b);
+    let s=Math.abs(p1.y-p2.y);
+    let top = Math.min(p1.y, p2.y);
+    let left = p1.y < p2.y ? p1.x : p1.x - s;
+    ctx.strokeRect(left, top, s, s);
+  });
+}
+
+function updateText(){
+  document.getElementById("slopeVal").innerText=state.slope.toFixed(2);
+  document.getElementById("interceptVal").innerText=state.intercept.toFixed(2);
+
+  // movable line
+  if(state.showTrialLine){
+    let trial = {slope:state.slope, intercept:state.intercept};
+    document.getElementById("eqTrial").innerText=`y=${trial.slope.toFixed(2)}x+${trial.intercept.toFixed(2)}`;
+
+    if(state.showSquares){
+      let sseTrial = state.points.reduce((s,p)=>{
+        let r=p.y-(trial.slope*p.x+trial.intercept);
+        return s+r*r;
+      },0);
+      document.getElementById("sseTrial").innerText=`SSE=${sseTrial.toFixed(2)}`;
+    } else {
+      document.getElementById("sseTrial").innerText="";
+    }
+  } else {
+    document.getElementById("eqTrial").innerText="";
+    document.getElementById("sseTrial").innerText="";
+  }
+
+  // LS line
+  let ls = computeLS();
+  if(state.showLS && ls){
+    document.getElementById("eqLS").innerText=`y=${ls.slope.toFixed(2)}x+${ls.intercept.toFixed(2)}`;
+
+    if(state.showSquares){
+      let sseLS = state.points.reduce((s,p)=>{
+        let r=p.y-(ls.slope*p.x+ls.intercept);
+        return s+r*r;
+      },0);
+      document.getElementById("sseLS").innerText=`SSE=${sseLS.toFixed(2)}`;
+    } else {
+      document.getElementById("sseLS").innerText="";
+    }
+  } else {
+    document.getElementById("eqLS").innerText="";
+    document.getElementById("sseLS").innerText="";
+  }
+}
+
+canvas.addEventListener("click",e=>{
+  let rect=canvas.getBoundingClientRect();
+  let b=getBounds();
+  let x=b.xMin+(e.clientX-rect.left)/canvas.width*(b.xMax-b.xMin);
+  let y=b.yMin+(canvas.height-(e.clientY-rect.top))/canvas.height*(b.yMax-b.yMin);
+  addPoint(x,y);
+  draw();
+});
+
+document.getElementById("slope").oninput=e=>{state.slope=parseFloat(e.target.value);draw();}
+document.getElementById("intercept").oninput=e=>{state.intercept=parseFloat(e.target.value);draw();}
+
+document.getElementById("toggleTrialLine").onclick=()=>{
+  state.showTrialLine=!state.showTrialLine;
+  document.getElementById("toggleTrialLine").innerText=state.showTrialLine?"Hide movable line":"Show movable line";
+  draw();
+}
+
+document.getElementById("toggleSquares").onclick=()=>{
+  state.showSquares=!state.showSquares;
+  document.getElementById("toggleSquares").innerText=state.showSquares?"Hide squares":"Show squares";
+  draw();
+}
+
+document.getElementById("toggleLSLine").onclick=()=>{
+  state.showLS=!state.showLS;
+  document.getElementById("toggleLSLine").innerText=state.showLS?"Hide LS line":"Show LS line";
+  draw();
+}
+
+document.getElementById("clearBtn").onclick=()=>{state.points=[];draw();}
+
+</script>
+</body>
+</html>
