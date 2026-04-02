@@ -1,232 +1,366 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Simple Linear Regression Explorer</title>
-  <style>
-    body { font-family: Arial; margin:0; padding:20px; background:#f5f7fb; }
-    .card { background:white; padding:20px; border-radius:12px; margin-bottom:20px; }
-    button { margin:5px; padding:10px; }
-    #plot { width:100%; height:600px; border:1px solid #ccc; cursor:crosshair; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Simple Linear Regression Explorer</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f7fb; }
+.card { background: white; padding: 20px; border-radius: 12px; max-width: 1200px; margin: 0 auto; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 12px 0; }
+label { margin-right: 8px; }
+button { padding: 10px 12px; }
+#plot { width: 100%; height: 600px; border: 1px solid #ccc; cursor: crosshair; display: block; }
+.readout p { margin: 8px 0; }
+.small { color: #666; font-size: 0.92rem; }
+</style>
 </head>
 <body>
 
 <div class="card">
-  <h2>Simple Linear Regression Explorer</h2>
+<h2>Simple Linear Regression Explorer</h2>
 
-  <label>Slope</label>
-  <input id="slope" type="range" min="-3" max="3" step="0.01" value="1">
-  <span id="slopeVal">1</span>
+<div class="controls">
+  <label>Slope
+    <input id="slope" type="range" min="-3" max="3" step="0.01" value="1">
+  </label>
+  <span id="slopeVal">1.00</span>
 
-  <label>Intercept</label>
-  <input id="intercept" type="range" min="-10" max="10" step="0.01" value="0">
-  <span id="interceptVal">0</span>
+  <label>Intercept
+    <input id="intercept" type="range" min="-10" max="10" step="0.01" value="0">
+  </label>
+  <span id="interceptVal">0.00</span>
+</div>
 
-  <br>
+<div class="controls">
   <button id="toggleTrialLine">Show movable line</button>
   <button id="toggleLSLine">Show LS line</button>
+  <button id="toggleYbarLine">Show ȳ line</button>
   <button id="toggleSquares">Show squares</button>
   <button id="clearBtn">Clear</button>
+</div>
 
-  <p><span style="color:blue;font-weight:bold">Movable line:</span> <span id="eqTrial"></span> | <span id="sseTrial" style="color:red"></span></p>
-  <p><span style="color:purple;font-weight:bold">LS line:</span> <span id="eqLS"></span> | <span id="sseLS" style="color:orange"></span></p>
+<div class="readout">
+  <p><span style="color:blue;font-weight:bold">Movable:</span> <span id="eqTrial" style="color:blue"></span> <span id="sseTrial" style="color:red"></span></p>
+  <p><span style="color:purple;font-weight:bold">LS:</span> <span id="eqLS" style="color:purple"></span> <span id="sseLS" style="color:orange"></span> <span id="r2formula" style="color:purple"></span> <span id="r2value" style="color:purple"></span></p>
+  <p><span style="color:green;font-weight:bold">ȳ:</span> <span id="eqYbar" style="color:green"></span> <span id="sst" style="color:green"></span></p>
+</div>
 
-  <canvas id="plot"></canvas>
+<p class="small">Click inside the plot to add points. When squares are shown, they are drawn for every line that is currently visible: movable line, least-squares line, and ȳ line.</p>
+
+<canvas id="plot"></canvas>
 </div>
 
 <script>
 const canvas = document.getElementById("plot");
 const ctx = canvas.getContext("2d");
 
-let state = {
+const state = {
   points: [],
-  slope:1,
-  intercept:0,
-  showTrialLine:false,
-  showSquares:false,
-  showLS:false,
-  ls:null
+  slope: 1,
+  intercept: 0,
+  showTrialLine: false,
+  showLS: false,
+  showYbar: false,
+  showSquares: false,
+  ls: null
 };
 
-function resize(){
+function resize() {
   canvas.width = canvas.clientWidth;
   canvas.height = canvas.clientHeight;
   draw();
 }
 window.addEventListener("resize", resize);
-resize();
 
-function addPoint(x,y){
-  state.points.push({x,y});
-}
+function getBounds() {
+  if (state.points.length === 0) {
+    return { xMin: -10, xMax: 10, yMin: -10, yMax: 10 };
+  }
+  const xs = state.points.map(p => p.x);
+  const ys = state.points.map(p => p.y);
+  let xMin = Math.min(...xs);
+  let xMax = Math.max(...xs);
+  let yMin = Math.min(...ys);
+  let yMax = Math.max(...ys);
 
-function getBounds(){
-  if(state.points.length===0) return {xMin:-10,xMax:10,yMin:-10,yMax:10};
-  let xs=state.points.map(p=>p.x);
-  let ys=state.points.map(p=>p.y);
+  if (xMin === xMax) {
+    xMin -= 1;
+    xMax += 1;
+  }
+  if (yMin === yMax) {
+    yMin -= 1;
+    yMax += 1;
+  }
+
   return {
-    xMin:Math.min(...xs)-2,
-    xMax:Math.max(...xs)+2,
-    yMin:Math.min(...ys)-2,
-    yMax:Math.max(...ys)+2
+    xMin: xMin - 2,
+    xMax: xMax + 2,
+    yMin: yMin - 2,
+    yMax: yMax + 2
   };
 }
 
-function toPx(x,y,b){
+function toPx(x, y, b) {
   return {
-    x:(x-b.xMin)/(b.xMax-b.xMin)*canvas.width,
-    y:canvas.height-(y-b.yMin)/(b.yMax-b.yMin)*canvas.height
+    x: (x - b.xMin) / (b.xMax - b.xMin) * canvas.width,
+    y: canvas.height - (y - b.yMin) / (b.yMax - b.yMin) * canvas.height
+  };
+}
+
+function fromPx(px, py, b) {
+  return {
+    x: b.xMin + px / canvas.width * (b.xMax - b.xMin),
+    y: b.yMin + (canvas.height - py) / canvas.height * (b.yMax - b.yMin)
+  };
+}
+
+function computeYbar() {
+  if (state.points.length === 0) return 0;
+  return state.points.reduce((sum, p) => sum + p.y, 0) / state.points.length;
+}
+
+function computeLS() {
+  if (state.points.length < 2) return null;
+  const xbar = state.points.reduce((sum, p) => sum + p.x, 0) / state.points.length;
+  const ybar = computeYbar();
+  let sxx = 0;
+  let sxy = 0;
+
+  state.points.forEach(p => {
+    sxx += (p.x - xbar) ** 2;
+    sxy += (p.x - xbar) * (p.y - ybar);
+  });
+
+  if (sxx === 0) return null;
+
+  const slope = sxy / sxx;
+  const intercept = ybar - slope * xbar;
+  return { slope, intercept };
+}
+
+function computeSSE(line) {
+  if (!line) return 0;
+  return state.points.reduce((sum, p) => {
+    const residual = p.y - (line.slope * p.x + line.intercept);
+    return sum + residual * residual;
+  }, 0);
+}
+
+function computeSST(ybar) {
+  return state.points.reduce((sum, p) => {
+    const deviation = p.y - ybar;
+    return sum + deviation * deviation;
+  }, 0);
+}
+
+function drawLine(m, b0, b, color, dashed = false) {
+  const p1 = toPx(b.xMin, m * b.xMin + b0, b);
+  const p2 = toPx(b.xMax, m * b.xMax + b0, b);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  if (dashed) ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.moveTo(p1.x, p1.y);
+  ctx.lineTo(p2.x, p2.y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawHorizontalLine(y, b, color, dashed = false) {
+  const p1 = toPx(b.xMin, y, b);
+  const p2 = toPx(b.xMax, y, b);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  if (dashed) ctx.setLineDash([6, 6]);
+  ctx.beginPath();
+  ctx.moveTo(p1.x, p1.y);
+  ctx.lineTo(p2.x, p2.y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawSquaresToLine(line, b, color) {
+  if (!line) return;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  state.points.forEach(p => {
+    const yhat = line.slope * p.x + line.intercept;
+    const p1 = toPx(p.x, p.y, b);
+    const p2 = toPx(p.x, yhat, b);
+    const side = Math.abs(p1.y - p2.y);
+    const top = Math.min(p1.y, p2.y);
+    const left = p1.y < p2.y ? p1.x : p1.x - side;
+    ctx.strokeRect(left, top, side, side);
+  });
+  ctx.restore();
+}
+
+function drawSquaresToYbar(ybar, b, color) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  state.points.forEach(p => {
+    const p1 = toPx(p.x, p.y, b);
+    const p2 = toPx(p.x, ybar, b);
+    const side = Math.abs(p1.y - p2.y);
+    const top = Math.min(p1.y, p2.y);
+    const left = p1.y < p2.y ? p1.x : p1.x - side;
+    ctx.strokeRect(left, top, side, side);
+  });
+  ctx.restore();
+}
+
+function updateText() {
+  state.ls = computeLS();
+  const ybar = computeYbar();
+  const sst = computeSST(ybar);
+
+  document.getElementById("slopeVal").innerText = state.slope.toFixed(2);
+  document.getElementById("interceptVal").innerText = state.intercept.toFixed(2);
+
+  if (state.showLS && state.ls && state.points.length > 1 && sst > 0) {
+    const sseLS = computeSSE(state.ls);
+    const r2 = 1 - sseLS / sst;
+    document.getElementById("r2formula").innerText = " | R² = 1 - SSE/SST";
+    document.getElementById("r2value").innerText = ` = ${r2.toFixed(3)}`;
+  } else {
+    document.getElementById("r2formula").innerText = "";
+    document.getElementById("r2value").innerText = "";
+  }
+
+  if (state.showTrialLine) {
+    document.getElementById("eqTrial").innerText = `y = ${state.slope.toFixed(2)}x + ${state.intercept.toFixed(2)}`;
+    document.getElementById("sseTrial").innerText = state.showSquares ? ` | SSE = ${computeSSE({ slope: state.slope, intercept: state.intercept }).toFixed(2)}` : "";
+  } else {
+    document.getElementById("eqTrial").innerText = "";
+    document.getElementById("sseTrial").innerText = "";
+  }
+
+  if (state.showLS && state.ls) {
+    document.getElementById("eqLS").innerText = `y = ${state.ls.slope.toFixed(2)}x + ${state.ls.intercept.toFixed(2)}`;
+    document.getElementById("sseLS").innerText = state.showSquares ? ` | SSE = ${computeSSE(state.ls).toFixed(2)}` : "";
+  } else {
+    document.getElementById("eqLS").innerText = "";
+    document.getElementById("sseLS").innerText = "";
+  }
+
+  if (state.showYbar) {
+    document.getElementById("eqYbar").innerText = `y = ${ybar.toFixed(2)}`;
+    document.getElementById("sst").innerText = state.showSquares ? ` | SST = ${sst.toFixed(2)}` : "";
+  } else {
+    document.getElementById("eqYbar").innerText = "";
+    document.getElementById("sst").innerText = "";
   }
 }
 
-function computeLS(){
-  if(state.points.length<2) return null;
-  let xbar = state.points.reduce((s,p)=>s+p.x,0)/state.points.length;
-  let ybar = state.points.reduce((s,p)=>s+p.y,0)/state.points.length;
-  let sxx=0,sxy=0;
-  state.points.forEach(p=>{
-    sxx+=(p.x-xbar)**2;
-    sxy+=(p.x-xbar)*(p.y-ybar);
-  });
-  let slope=sxy/sxx;
-  let intercept=ybar-slope*xbar;
-  return {slope,intercept};
-}
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const b = getBounds();
+  state.ls = computeLS();
 
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  let b=getBounds();
+  if (state.showTrialLine) {
+    drawLine(state.slope, state.intercept, b, "blue");
+  }
+  if (state.showLS && state.ls) {
+    drawLine(state.ls.slope, state.ls.intercept, b, "purple");
+  }
+  if (state.showYbar) {
+    drawHorizontalLine(computeYbar(), b, "green", true);
+  }
 
-  state.points.forEach(p=>{
-    let pt=toPx(p.x,p.y,b);
+  if (state.showSquares) {
+    if (state.showTrialLine) {
+      drawSquaresToLine({ slope: state.slope, intercept: state.intercept }, b, "red");
+    }
+    if (state.showLS && state.ls) {
+      drawSquaresToLine(state.ls, b, "orange");
+    }
+    if (state.showYbar) {
+      drawSquaresToYbar(computeYbar(), b, "green");
+    }
+  }
+
+  state.points.forEach(p => {
+    const pt = toPx(p.x, p.y, b);
     ctx.beginPath();
-    ctx.arc(pt.x,pt.y,4,0,2*Math.PI);
+    ctx.arc(pt.x, pt.y, 4, 0, 2 * Math.PI);
+    ctx.fillStyle = "black";
     ctx.fill();
   });
-
-  if(state.showTrialLine){
-    drawLine(state.slope,state.intercept,b,"blue");
-  }
-
-  if(state.showLS){
-    state.ls=computeLS();
-    if(state.ls){
-      drawLine(state.ls.slope,state.ls.intercept,b,"purple");
-    }
-  }
-
-  if(state.showSquares){
-    if(state.showTrialLine){
-      drawSquares({slope:state.slope,intercept:state.intercept}, b, "red");
-    }
-    if(state.showLS && state.ls){
-      drawSquares(state.ls, b, "orange");
-    }
-  }
 
   updateText();
 }
 
-function drawLine(m,b0,b,color){
-  let p1=toPx(b.xMin,m*b.xMin+b0,b);
-  let p2=toPx(b.xMax,m*b.xMax+b0,b);
-  ctx.strokeStyle=color;
-  ctx.beginPath();
-  ctx.moveTo(p1.x,p1.y);
-  ctx.lineTo(p2.x,p2.y);
-  ctx.stroke();
-}
-
-function drawSquares(line,b,color){
-  ctx.strokeStyle=color;
-  state.points.forEach(p=>{
-    let yhat=line.slope*p.x+line.intercept;
-    let p1=toPx(p.x,p.y,b);
-    let p2=toPx(p.x,yhat,b);
-    let s=Math.abs(p1.y-p2.y);
-    let top = Math.min(p1.y, p2.y);
-    let left = p1.y < p2.y ? p1.x : p1.x - s;
-    ctx.strokeRect(left, top, s, s);
-  });
-}
-
-function updateText(){
-  document.getElementById("slopeVal").innerText=state.slope.toFixed(2);
-  document.getElementById("interceptVal").innerText=state.intercept.toFixed(2);
-
-  // movable line
-  if(state.showTrialLine){
-    let trial = {slope:state.slope, intercept:state.intercept};
-    document.getElementById("eqTrial").innerText=`y=${trial.slope.toFixed(2)}x+${trial.intercept.toFixed(2)}`;
-
-    if(state.showSquares){
-      let sseTrial = state.points.reduce((s,p)=>{
-        let r=p.y-(trial.slope*p.x+trial.intercept);
-        return s+r*r;
-      },0);
-      document.getElementById("sseTrial").innerText=`SSE=${sseTrial.toFixed(2)}`;
-    } else {
-      document.getElementById("sseTrial").innerText="";
-    }
-  } else {
-    document.getElementById("eqTrial").innerText="";
-    document.getElementById("sseTrial").innerText="";
-  }
-
-  // LS line
-  let ls = computeLS();
-  if(state.showLS && ls){
-    document.getElementById("eqLS").innerText=`y=${ls.slope.toFixed(2)}x+${ls.intercept.toFixed(2)}`;
-
-    if(state.showSquares){
-      let sseLS = state.points.reduce((s,p)=>{
-        let r=p.y-(ls.slope*p.x+ls.intercept);
-        return s+r*r;
-      },0);
-      document.getElementById("sseLS").innerText=`SSE=${sseLS.toFixed(2)}`;
-    } else {
-      document.getElementById("sseLS").innerText="";
-    }
-  } else {
-    document.getElementById("eqLS").innerText="";
-    document.getElementById("sseLS").innerText="";
-  }
-}
-
-canvas.addEventListener("click",e=>{
-  let rect=canvas.getBoundingClientRect();
-  let b=getBounds();
-  let x=b.xMin+(e.clientX-rect.left)/canvas.width*(b.xMax-b.xMin);
-  let y=b.yMin+(canvas.height-(e.clientY-rect.top))/canvas.height*(b.yMax-b.yMin);
-  addPoint(x,y);
+canvas.addEventListener("click", e => {
+  const rect = canvas.getBoundingClientRect();
+  const b = getBounds();
+  const px = e.clientX - rect.left;
+  const py = e.clientY - rect.top;
+  const p = fromPx(px, py, b);
+  state.points.push(p);
   draw();
 });
 
-document.getElementById("slope").oninput=e=>{state.slope=parseFloat(e.target.value);draw();}
-document.getElementById("intercept").oninput=e=>{state.intercept=parseFloat(e.target.value);draw();}
-
-document.getElementById("toggleTrialLine").onclick=()=>{
-  state.showTrialLine=!state.showTrialLine;
-  document.getElementById("toggleTrialLine").innerText=state.showTrialLine?"Hide movable line":"Show movable line";
+document.getElementById("slope").oninput = e => {
+  state.slope = parseFloat(e.target.value);
   draw();
+};
+
+document.getElementById("intercept").oninput = e => {
+  state.intercept = parseFloat(e.target.value);
+  draw();
+};
+
+document.getElementById("toggleTrialLine").onclick = () => {
+  state.showTrialLine = !state.showTrialLine;
+  document.getElementById("toggleTrialLine").innerText = state.showTrialLine ? "Hide movable line" : "Show movable line";
+  draw();
+};
+
+document.getElementById("toggleLSLine").onclick = () => {
+  state.showLS = !state.showLS;
+  document.getElementById("toggleLSLine").innerText = state.showLS ? "Hide LS line" : "Show LS line";
+  draw();
+};
+
+document.getElementById("toggleYbarLine").onclick = () => {
+  state.showYbar = !state.showYbar;
+  document.getElementById("toggleYbarLine").innerText = state.showYbar ? "Hide ȳ line" : "Show ȳ line";
+  draw();
+};
+
+document.getElementById("toggleSquares").onclick = () => {
+  state.showSquares = !state.showSquares;
+  document.getElementById("toggleSquares").innerText = state.showSquares ? "Hide squares" : "Show squares";
+  draw();
+};
+
+document.getElementById("clearBtn").onclick = () => {
+  state.points = [];
+  state.ls = null;
+  draw();
+};
+
+function runSelfTests() {
+  console.assert(computeYbar() === 0, "Empty ybar should be 0");
+
+  const savedPoints = state.points.slice();
+  state.points = [{ x: 0, y: 1 }, { x: 1, y: 3 }, { x: 2, y: 5 }];
+  const ls = computeLS();
+  console.assert(ls && Math.abs(ls.slope - 2) < 1e-9, "LS slope test failed");
+  console.assert(ls && Math.abs(ls.intercept - 1) < 1e-9, "LS intercept test failed");
+  console.assert(Math.abs(computeYbar() - 3) < 1e-9, "ybar test failed");
+  console.assert(Math.abs(computeSSE(ls)) < 1e-9, "SSE test failed");
+  console.assert(Math.abs(computeSST(3) - 8) < 1e-9, "SST test failed");
+  state.points = savedPoints;
 }
 
-document.getElementById("toggleSquares").onclick=()=>{
-  state.showSquares=!state.showSquares;
-  document.getElementById("toggleSquares").innerText=state.showSquares?"Hide squares":"Show squares";
-  draw();
-}
-
-document.getElementById("toggleLSLine").onclick=()=>{
-  state.showLS=!state.showLS;
-  document.getElementById("toggleLSLine").innerText=state.showLS?"Hide LS line":"Show LS line";
-  draw();
-}
-
-document.getElementById("clearBtn").onclick=()=>{state.points=[];draw();}
-
+runSelfTests();
+resize();
 </script>
 </body>
 </html>
