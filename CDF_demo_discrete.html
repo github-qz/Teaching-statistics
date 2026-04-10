@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Enhanced Binomial Distribution Explorer</title>
+  <style>
+    :root{
+      --bg:#f7f7f9;
+      --panel:#ffffff;
+      --text:#1f2937;
+      --muted:#6b7280;
+      --border:#d1d5db;
+      --grid:#e5e7eb;
+      --blue:#619CFF;
+      --gray:#b0b7c3;
+      --green:#00BA38;
+      --red:#dc2626;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Arial, Helvetica, sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    .wrap{
+      max-width:1200px;
+      margin:0 auto;
+      padding:24px;
+    }
+    h1{
+      margin:0 0 20px;
+      font-size:30px;
+      font-weight:700;
+    }
+    .layout{
+      display:grid;
+      grid-template-columns:320px 1fr;
+      gap:20px;
+      align-items:start;
+    }
+    .panel{
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:18px;
+      box-shadow:0 1px 3px rgba(0,0,0,0.06);
+    }
+    .control{
+      margin-bottom:24px;
+    }
+    .control label{
+      display:block;
+      font-weight:600;
+      margin-bottom:8px;
+    }
+    .value{
+      color:var(--muted);
+      font-weight:400;
+    }
+    input[type="range"]{
+      width:100%;
+    }
+    .plot-title{
+      font-size:22px;
+      font-weight:700;
+      text-align:center;
+      margin:0 0 8px;
+    }
+    .plot-block{
+      margin-bottom:20px;
+    }
+    svg{
+      width:100%;
+      height:auto;
+      display:block;
+      background:#fff;
+      border-radius:8px;
+    }
+    .footer-text{
+      margin-top:8px;
+      padding:12px 14px;
+      background:#f9fafb;
+      border:1px solid var(--border);
+      border-radius:10px;
+      font-family:"Courier New", Courier, monospace;
+      white-space:pre-wrap;
+    }
+    .note{
+      color:var(--muted);
+      font-size:13px;
+      margin-top:10px;
+    }
+    @media (max-width: 900px){
+      .layout{grid-template-columns:1fr;}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Enhanced Binomial Distribution Explorer</h1>
+
+    <div class="layout">
+      <div class="panel">
+        <div class="control">
+          <label for="n">
+            Number of trials (n): <span class="value" id="nValue">10</span>
+          </label>
+          <input id="n" type="range" min="1" max="50" step="1" value="10" />
+        </div>
+
+        <div class="control">
+          <label for="p">
+            Success probability (p): <span class="value" id="pValue">0.50</span>
+          </label>
+          <input id="p" type="range" min="0" max="1" step="0.01" value="0.50" />
+        </div>
+
+        <div class="control">
+          <label for="x">
+            Select x (can be non-integer): <span class="value" id="xValue">0.0</span>
+          </label>
+          <input id="x" type="range" min="-2" max="12" step="0.1" value="0" />
+        </div>
+
+        <div class="note">
+          This is a standalone HTML/CSS/JavaScript version suitable for GitHub Pages.
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="plot-block">
+          <div class="plot-title">Probability Mass Function (PMF)</div>
+          <svg id="pmfChart" viewBox="0 0 900 420" aria-label="Binomial PMF chart"></svg>
+        </div>
+
+        <div class="plot-block">
+          <div class="plot-title">Cumulative Distribution Function (CDF)</div>
+          <svg id="cdfChart" viewBox="0 0 900 420" aria-label="Binomial CDF chart"></svg>
+        </div>
+
+        <div class="footer-text" id="probInfo"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const nInput = document.getElementById("n");
+    const pInput = document.getElementById("p");
+    const xInput = document.getElementById("x");
+
+    const nValue = document.getElementById("nValue");
+    const pValue = document.getElementById("pValue");
+    const xValue = document.getElementById("xValue");
+
+    const pmfChart = document.getElementById("pmfChart");
+    const cdfChart = document.getElementById("cdfChart");
+    const probInfo = document.getElementById("probInfo");
+
+    function choose(n, k) {
+      if (k < 0 || k > n) return 0;
+      k = Math.min(k, n - k);
+      let result = 1;
+      for (let i = 1; i <= k; i++) {
+        result = result * (n - k + i) / i;
+      }
+      return result;
+    }
+
+    function dbinom(k, n, p) {
+      if (k < 0 || k > n || !Number.isInteger(k)) return 0;
+      if (p === 0) return k === 0 ? 1 : 0;
+      if (p === 1) return k === n ? 1 : 0;
+      return choose(n, k) * Math.pow(p, k) * Math.pow(1 - p, n - k);
+    }
+
+    function pbinom(x, n, p) {
+      const m = Math.floor(x);
+      if (m < 0) return 0;
+      if (m >= n) return 1;
+      let sum = 0;
+      for (let k = 0; k <= m; k++) sum += dbinom(k, n, p);
+      return sum;
+    }
+
+    function createSVGElement(tag, attrs = {}, text = null) {
+      const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+      for (const [key, value] of Object.entries(attrs)) {
+        el.setAttribute(key, value);
+      }
+      if (text !== null) el.textContent = text;
+      return el;
+    }
+
+    function updateControlLabels() {
+      const n = parseInt(nInput.value, 10);
+      nValue.textContent = String(n);
+      pValue.textContent = Number(pInput.value).toFixed(2);
+
+      xInput.max = String(n + 2);
+      if (parseFloat(xInput.value) > n + 2) {
+        xInput.value = String(n + 2);
+      }
+      xValue.textContent = Number(xInput.value).toFixed(1);
+    }
+
+    function drawAxes(svg, W, H, margin, xMin, xMax, yMax, xLabel, yLabel, xTicks, yTicks) {
+      const innerW = W - margin.left - margin.right;
+      const innerH = H - margin.top - margin.bottom;
+      const xScale = x => margin.left + ((x - xMin) / (xMax - xMin)) * innerW;
+      const yScale = y => margin.top + innerH - (y / yMax) * innerH;
+
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+      svg.appendChild(createSVGElement("rect", {
+        x: 0, y: 0, width: W, height: H, fill: "white"
+      }));
+
+      yTicks.forEach(yVal => {
+        const y = yScale(yVal);
+        svg.appendChild(createSVGElement("line", {
+          x1: margin.left, y1: y, x2: W - margin.right, y2: y,
+          stroke: "#e5e7eb", "stroke-width": 1
+        }));
+        svg.appendChild(createSVGElement("text", {
+          x: margin.left - 10, y: y + 4, "text-anchor": "end",
+          "font-size": 12, fill: "#374151"
+        }, yVal.toFixed(2).replace(/\.00$/, "")));
+      });
+
+      svg.appendChild(createSVGElement("line", {
+        x1: margin.left, y1: margin.top + innerH,
+        x2: W - margin.right, y2: margin.top + innerH,
+        stroke: "#111827", "stroke-width": 1.5
+      }));
+      svg.appendChild(createSVGElement("line", {
+        x1: margin.left, y1: margin.top,
+        x2: margin.left, y2: margin.top + innerH,
+        stroke: "#111827", "stroke-width": 1.5
+      }));
+
+      xTicks.forEach(xVal => {
+        const x = xScale(xVal);
+        svg.appendChild(createSVGElement("line", {
+          x1: x, y1: margin.top + innerH, x2: x, y2: margin.top + innerH + 6,
+          stroke: "#111827", "stroke-width": 1
+        }));
+        svg.appendChild(createSVGElement("text", {
+          x: x, y: margin.top + innerH + 22, "text-anchor": "middle",
+          "font-size": 12, fill: "#374151"
+        }, String(xVal)));
+      });
+
+      svg.appendChild(createSVGElement("text", {
+        x: margin.left + innerW / 2, y: H - 18,
+        "text-anchor": "middle", "font-size": 16, fill: "#111827", "font-weight": "600"
+      }, xLabel));
+
+      svg.appendChild(createSVGElement("text", {
+        x: 22, y: margin.top + innerH / 2,
+        transform: `rotate(-90 22 ${margin.top + innerH / 2})`,
+        "text-anchor": "middle", "font-size": 16, fill: "#111827", "font-weight": "600"
+      }, yLabel));
+
+      return { xScale, yScale, innerW, innerH };
+    }
+
+    function integerTicks(maxN) {
+      const out = [];
+      for (let i = 0; i <= maxN; i++) out.push(i);
+      return out;
+    }
+
+    function drawPMF() {
+      const n = parseInt(nInput.value, 10);
+      const p = parseFloat(pInput.value);
+      const currentX = parseFloat(xInput.value);
+      const floorX = Math.floor(currentX);
+
+      const data = [];
+      for (let x = 0; x <= n; x++) {
+        data.push({ x, pmf: dbinom(x, n, p) });
+      }
+
+      const W = 900, H = 420;
+      const margin = { top: 20, right: 30, bottom: 60, left: 70 };
+      const yMaxData = Math.max(...data.map(d => d.pmf), 0.05);
+      const yMax = yMaxData * 1.15;
+
+      const { xScale, yScale } = drawAxes(
+        pmfChart, W, H, margin,
+        -2, n + 2, yMax,
+        "x", "Probability",
+        integerTicks(n), Array.from({length: 6}, (_, i) => yMax * i / 5)
+      );
+
+      const xLine = xScale(Math.max(-2, Math.min(currentX, n + 2)));
+      pmfChart.appendChild(createSVGElement("line", {
+        x1: xLine, y1: margin.top,
+        x2: xLine, y2: H - margin.bottom,
+        stroke: "#dc2626", "stroke-width": 2, "stroke-dasharray": "8 7"
+      }));
+
+      data.forEach(d => {
+        const x = xScale(d.x);
+        const y = yScale(d.pmf);
+        const color = d.x <= floorX ? "#619CFF" : "#b0b7c3";
+
+        pmfChart.appendChild(createSVGElement("line", {
+          x1: x, y1: yScale(0),
+          x2: x, y2: y,
+          stroke: color, "stroke-width": 5, "stroke-linecap": "round"
+        }));
+
+        if (d.pmf > 0) {
+          pmfChart.appendChild(createSVGElement("text", {
+            x: x, y: Math.max(y - 8, margin.top + 12),
+            "text-anchor": "middle", "font-size": 12, fill: "#111827"
+          }, d.pmf.toFixed(3)));
+        }
+      });
+    }
+
+    function drawCDF() {
+      const n = parseInt(nInput.value, 10);
+      const p = parseFloat(pInput.value);
+      const currentX = parseFloat(xInput.value);
+      const cdfValue = pbinom(Math.floor(currentX), n, p);
+
+      const data = [];
+      for (let k = -2; k <= n + 2; k++) {
+        data.push({ x: k, cdf: pbinom(k, n, p) });
+      }
+
+      const W = 900, H = 420;
+      const margin = { top: 20, right: 30, bottom: 60, left: 70 };
+
+      const { xScale, yScale } = drawAxes(
+        cdfChart, W, H, margin,
+        -2, n + 2, 1.05,
+        "x", "Cumulative Probability",
+        integerTicks(n), [0, 0.25, 0.5, 0.75, 1.0]
+      );
+
+      // Step function: horizontal segments plus closed-left/open-right style marks
+      for (let k = -2; k < n + 2; k++) {
+        const y = yScale(pbinom(k, n, p));
+        const x1 = xScale(k);
+        const x2 = xScale(k + 1);
+        cdfChart.appendChild(createSVGElement("line", {
+          x1: x1, y1: y, x2: x2, y2: y,
+          stroke: "#00BA38", "stroke-width": 3
+        }));
+      }
+
+      for (let k = -1; k <= n + 2; k++) {
+        const yPrev = yScale(pbinom(k - 1, n, p));
+        const yCurr = yScale(pbinom(k, n, p));
+        const x = xScale(k);
+        cdfChart.appendChild(createSVGElement("line", {
+          x1: x, y1: yPrev, x2: x, y2: yCurr,
+          stroke: "#00BA38", "stroke-width": 2
+        }));
+      }
+
+      // Current x marker
+      cdfChart.appendChild(createSVGElement("circle", {
+        cx: xScale(Math.max(-2, Math.min(currentX, n + 2))),
+        cy: yScale(cdfValue),
+        r: 5, fill: "#dc2626"
+      }));
+    }
+
+    function updateInfo() {
+      const n = parseInt(nInput.value, 10);
+      const p = parseFloat(pInput.value);
+      const currentX = parseFloat(xInput.value);
+      const k = Math.floor(currentX);
+      const pmfVal = (k >= 0 && k <= n) ? dbinom(k, n, p) : 0;
+      const cdfVal = pbinom(k, n, p);
+
+      probInfo.textContent =
+        `Selected x value: ${currentX.toFixed(2)}\n` +
+        `Floor(x): ${k}\n` +
+        `PMF at floor(x): ${pmfVal.toFixed(4)}\n` +
+        `CDF at x: ${cdfVal.toFixed(4)}`;
+    }
+
+    function renderAll() {
+      updateControlLabels();
+      drawPMF();
+      drawCDF();
+      updateInfo();
+    }
+
+    [nInput, pInput, xInput].forEach(el => {
+      el.addEventListener("input", renderAll);
+    });
+
+    renderAll();
+  </script>
+</body>
+</html>
