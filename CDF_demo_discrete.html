@@ -25,35 +25,36 @@
       color:var(--text);
     }
     .wrap{
-      max-width:1200px;
+      max-width:1100px;
       margin:0 auto;
-      padding:24px;
+      padding:18px;
     }
     h1{
-      margin:0 0 20px;
-      font-size:30px;
+      margin:0 0 14px;
+      font-size:26px;
       font-weight:700;
     }
     .layout{
       display:grid;
-      grid-template-columns:320px 1fr;
-      gap:20px;
+      grid-template-columns:280px 1fr;
+      gap:16px;
       align-items:start;
     }
     .panel{
       background:var(--panel);
       border:1px solid var(--border);
       border-radius:12px;
-      padding:18px;
+      padding:14px;
       box-shadow:0 1px 3px rgba(0,0,0,0.06);
     }
     .control{
-      margin-bottom:24px;
+      margin-bottom:18px;
     }
     .control label{
       display:block;
       font-weight:600;
-      margin-bottom:8px;
+      margin-bottom:6px;
+      font-size:14px;
     }
     .value{
       color:var(--muted);
@@ -63,37 +64,40 @@
       width:100%;
     }
     .plot-title{
-      font-size:22px;
+      font-size:18px;
       font-weight:700;
       text-align:center;
-      margin:0 0 8px;
+      margin:0 0 6px;
     }
     .plot-block{
-      margin-bottom:20px;
+      margin-bottom:14px;
     }
     svg{
-      width:100%;
+      width:80%;
       height:auto;
       display:block;
+      margin:0 auto;
       background:#fff;
       border-radius:8px;
     }
     .footer-text{
-      margin-top:8px;
-      padding:12px 14px;
+      margin-top:6px;
+      padding:10px 12px;
       background:#f9fafb;
       border:1px solid var(--border);
       border-radius:10px;
       font-family:"Courier New", Courier, monospace;
       white-space:pre-wrap;
+      font-size:14px;
     }
     .note{
       color:var(--muted);
-      font-size:13px;
-      margin-top:10px;
+      font-size:12px;
+      margin-top:8px;
     }
     @media (max-width: 900px){
       .layout{grid-template-columns:1fr;}
+      svg{width:100%;}
     }
   </style>
 </head>
@@ -291,7 +295,7 @@
       const { xScale, yScale } = drawAxes(
         pmfChart, W, H, margin,
         -2, n + 2, yMax,
-        "t", "Probability",
+        "k", "Probability",
         integerTicks(n), Array.from({length: 6}, (_, i) => yMax * i / 5)
       );
 
@@ -381,13 +385,12 @@
       const p = parseFloat(pInput.value);
       const currentX = parseFloat(xInput.value);
       const k = Math.floor(currentX);
-      const pmfVal = (k >= 0 && k <= n) ? dbinom(k, n, p) : 0;
+      const pmfVal = (Number.isInteger(currentX) && currentX >= 0 && currentX <= n) ? dbinom(currentX, n, p) : 0;
       const cdfVal = pbinom(k, n, p);
 
       probInfo.textContent =
         `Selected x value: ${currentX.toFixed(2)}\n` +
-        `Floor(x): ${k}\n` +
-        `PMF at floor(x): ${pmfVal.toFixed(4)}\n` +
+        `PMF at x: ${pmfVal.toFixed(4)}\n` +
         `CDF at x: ${cdfVal.toFixed(4)}`;
     }
 
