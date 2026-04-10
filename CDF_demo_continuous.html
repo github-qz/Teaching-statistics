@@ -143,7 +143,7 @@
       return el;
     }
 
-    function drawAxes(svg, W, H, margin, xMin, xMax, yMin, yMax, yLabel) {
+    function drawAxes(svg, W, H, margin, xMin, xMax, yMin, yMax, yLabel, xLabel = "x") {
       while (svg.firstChild) svg.removeChild(svg.firstChild);
 
       const innerW = W - margin.left - margin.right;
@@ -206,7 +206,7 @@
       svg.appendChild(createSVGElement("text", {
         x: W / 2, y: H - 12, "text-anchor": "middle",
         "font-size": 16, fill: "#111827", "font-weight": "600"
-      }, "x"));
+      }, xLabel));
 
       svg.appendChild(createSVGElement("text", {
         x: 22, y: H / 2,
@@ -222,9 +222,10 @@
       const W = 560, H = 400;
       const margin = { top: 20, right: 20, bottom: 55, left: 65 };
       const xMin = -5, xMax = 5, yMin = 0, yMax = 0.45;
-      const { xScale, yScale, xInvert } = drawAxes(pdfChart, W, H, margin, xMin, xMax, yMin, yMax, "Density");
+      const { xScale, yScale, xInvert } = drawAxes(
+        pdfChart, W, H, margin, xMin, xMax, yMin, yMax, "Density", "t"
+      );
 
-      // Shaded area under PDF up to currentX
       const shadeLeft = xMin;
       const shadeRight = Math.max(xMin, Math.min(currentX, xMax));
       if (shadeRight > shadeLeft) {
@@ -239,7 +240,6 @@
         }));
       }
 
-      // PDF curve
       let path = "";
       for (let i = 0; i <= 500; i++) {
         const x = xMin + (xMax - xMin) * i / 500;
@@ -250,13 +250,21 @@
         d: path, fill: "none", stroke: "#1e3a8a", "stroke-width": 2.5
       }));
 
-      // Vertical line
       const xLine = xScale(Math.max(xMin, Math.min(currentX, xMax)));
       pdfChart.appendChild(createSVGElement("line", {
         x1: xLine, y1: margin.top,
         x2: xLine, y2: H - margin.bottom,
         stroke: "#dc2626", "stroke-width": 2, "stroke-dasharray": "8 7"
       }));
+
+      pdfChart.appendChild(createSVGElement("text", {
+        x: xLine,
+        y: H - margin.bottom + 20,
+        "text-anchor": "middle",
+        "font-size": 16,
+        "font-weight": "700",
+        fill: "#dc2626"
+      }, "x"));
 
       pdfChart.onclick = (evt) => {
         const pt = pdfChart.createSVGPoint();
@@ -274,7 +282,9 @@
       const W = 560, H = 400;
       const margin = { top: 20, right: 20, bottom: 55, left: 65 };
       const xMin = -5, xMax = 5, yMin = 0, yMax = 1;
-      const { xScale, yScale, xInvert } = drawAxes(cdfChart, W, H, margin, xMin, xMax, yMin, yMax, "Probability");
+      const { xScale, yScale, xInvert } = drawAxes(
+        cdfChart, W, H, margin, xMin, xMax, yMin, yMax, "Probability", "x"
+      );
 
       let path = "";
       for (let i = 0; i <= 500; i++) {
