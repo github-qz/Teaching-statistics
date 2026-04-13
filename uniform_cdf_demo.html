@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Uniform(0,5) CDF Demo</title>
+  <style>
+    :root {
+      --bg: #f7f7fb;
+      --panel: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #d1d5db;
+      --accent: #2563eb;
+      --accent-soft: rgba(37, 99, 235, 0.18);
+      --pdf: #059669;
+      --cdf: #dc2626;
+      --grid: #e5e7eb;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 20px;
+      line-height: 1.45;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 20px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+    }
+
+    .controls h2,
+    .info h2 {
+      margin-top: 0;
+      font-size: 20px;
+    }
+
+    .control-group {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+    }
+
+    .value-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-top: 8px;
+      color: var(--muted);
+    }
+
+    .x-box {
+      font-weight: 700;
+      color: var(--accent);
+      min-width: 74px;
+      text-align: right;
+    }
+
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      background: white;
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .checkbox {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0;
+      font-weight: 400;
+    }
+
+    .formula {
+      margin: 12px 0;
+      padding: 12px;
+      background: #f9fafb;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      line-height: 1.6;
+      font-family: "Times New Roman", serif;
+      font-size: 18px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(120px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .stat {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fbfdff;
+    }
+
+    .stat-title {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 12px;
+      font-size: 14px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .swatch {
+      width: 18px;
+      height: 4px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+
+    canvas {
+      width: 100%;
+      display: block;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 12px;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Uniform Distribution Explorer: U(0, 5)</h1>
+    <div class="subtitle">
+      Move the slider to see the PDF and CDF for a continuous uniform random variable on the interval [0, 5].
+      The shaded region under the PDF from 0 to x equals the CDF value F(x).
+    </div>
+
+    <div class="grid">
+      <div class="panel controls">
+        <h2>Controls</h2>
+
+        <div class="control-group">
+          <label for="xSlider">x-value</label>
+          <input id="xSlider" type="range" min="-1" max="6" step="0.01" value="2.5" />
+          <div class="value-row">
+            <span>Range: -1 to 6</span>
+            <span class="x-box" id="xValue">x = 2.50</span>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button id="toLeft">x = -0.5</button>
+          <button id="toZero">x = 0</button>
+          <button id="toMiddle">x = 2.5</button>
+          <button id="toFive">x = 5</button>
+          <button id="toRight">x = 5.5</button>
+        </div>
+
+        <label class="checkbox"><input type="checkbox" id="showGuides" checked /> Show guide lines</label>
+        <label class="checkbox"><input type="checkbox" id="showFormula" checked /> Show piecewise formulas</label>
+        <label class="checkbox"><input type="checkbox" id="showArea" checked /> Shade area under PDF from 0 to x</label>
+
+        <div class="formula" id="formulaBox"></div>
+
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="stat-title">PDF at x</div>
+            <div class="stat-value" id="pdfValue">0.20</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">CDF at x</div>
+            <div class="stat-value" id="cdfValue">0.50</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">Mean</div>
+            <div class="stat-value">2.50</div>
+          </div>
+          <div class="stat">
+            <div class="stat-title">Variance</div>
+            <div class="stat-value">25/12</div>
+          </div>
+        </div>
+
+        <div class="note">
+          For U(0,5), the PDF is constant at 1/5 on [0,5], and the CDF increases linearly from 0 to 1 across that interval.
+        </div>
+      </div>
+
+      <div class="panel info">
+        <h2>Graph</h2>
+        <canvas id="plot" width="820" height="520"></canvas>
+        <div class="legend">
+          <div class="legend-item"><span class="swatch" style="background: var(--pdf);"></span> PDF</div>
+          <div class="legend-item"><span class="swatch" style="background: var(--cdf);"></span> CDF</div>
+          <div class="legend-item"><span class="swatch" style="background: var(--accent);"></span> Current x</div>
+          <div class="legend-item"><span class="swatch" style="background: rgba(37, 99, 235, 0.25); height: 10px;"></span> Probability area</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const slider = document.getElementById('xSlider');
+    const xValue = document.getElementById('xValue');
+    const pdfValue = document.getElementById('pdfValue');
+    const cdfValue = document.getElementById('cdfValue');
+    const formulaBox = document.getElementById('formulaBox');
+    const showGuides = document.getElementById('showGuides');
+    const showFormula = document.getElementById('showFormula');
+    const showArea = document.getElementById('showArea');
+    const canvas = document.getElementById('plot');
+    const ctx = canvas.getContext('2d');
+
+    const xMin = -1;
+    const xMax = 6;
+    const yMin = -0.05;
+    const yMax = 1.1;
+
+    function f(x) {
+      return (x >= 0 && x <= 5) ? 1 / 5 : 0;
+    }
+
+    function F(x) {
+      if (x < 0) return 0;
+      if (x <= 5) return x / 5;
+      return 1;
+    }
+
+    function fmt(num) {
+      return Number(num).toFixed(2);
+    }
+
+    function mapX(x) {
+      const left = 70;
+      const right = canvas.width - 28;
+      return left + (x - xMin) / (xMax - xMin) * (right - left);
+    }
+
+    function mapY(y) {
+      const top = 26;
+      const bottom = canvas.height - 56;
+      return bottom - (y - yMin) / (yMax - yMin) * (bottom - top);
+    }
+
+    function drawAxes() {
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 1.5;
+
+      ctx.beginPath();
+      ctx.moveTo(mapX(xMin), mapY(0));
+      ctx.lineTo(mapX(xMax), mapY(0));
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(mapX(0), mapY(yMin));
+      ctx.lineTo(mapX(0), mapY(yMax));
+      ctx.stroke();
+
+      ctx.fillStyle = '#111827';
+      ctx.font = '14px Arial';
+      ctx.fillText('x', mapX(xMax) - 6, mapY(0) - 10);
+      ctx.fillText('y', mapX(0) + 10, mapY(yMax) + 2);
+
+      for (let t = -1; t <= 6; t += 1) {
+        const px = mapX(t);
+        ctx.beginPath();
+        ctx.moveTo(px, mapY(0) - 5);
+        ctx.lineTo(px, mapY(0) + 5);
+        ctx.stroke();
+        ctx.fillText(String(t), px - 5, mapY(0) + 22);
+      }
+
+      const yTicks = [0, 0.2, 0.4, 0.6, 0.8, 1.0];
+      for (const t of yTicks) {
+        const py = mapY(t);
+        ctx.beginPath();
+        ctx.moveTo(mapX(0) - 5, py);
+        ctx.lineTo(mapX(0) + 5, py);
+        ctx.stroke();
+        ctx.fillText(t.toFixed(1), mapX(0) - 38, py + 5);
+
+        ctx.strokeStyle = '#e5e7eb';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(mapX(xMin), py);
+        ctx.lineTo(mapX(xMax), py);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#111827';
+        ctx.lineWidth = 1.5;
+      }
+    }
+
+    function drawPDF() {
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--pdf').trim();
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(mapX(xMin), mapY(0));
+      ctx.lineTo(mapX(0), mapY(0));
+      ctx.lineTo(mapX(0), mapY(0.2));
+      ctx.lineTo(mapX(5), mapY(0.2));
+      ctx.lineTo(mapX(5), mapY(0));
+      ctx.lineTo(mapX(xMax), mapY(0));
+      ctx.stroke();
+
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--pdf').trim();
+      ctx.font = '16px Arial';
+      ctx.fillText('PDF', mapX(4.25), mapY(0.2) - 10);
+    }
+
+    function drawCDF() {
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--cdf').trim();
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(mapX(xMin), mapY(0));
+      ctx.lineTo(mapX(0), mapY(0));
+      ctx.lineTo(mapX(5), mapY(1));
+      ctx.lineTo(mapX(xMax), mapY(1));
+      ctx.stroke();
+
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--cdf').trim();
+      ctx.fillText('CDF', mapX(3.5), mapY(0.72));
+    }
+
+    function drawArea(x) {
+      if (!showArea.checked) return;
+      const left = Math.max(0, Math.min(5, 0));
+      const right = Math.max(0, Math.min(5, x));
+      if (right <= left) return;
+
+      ctx.fillStyle = 'rgba(37, 99, 235, 0.20)';
+      ctx.beginPath();
+      ctx.moveTo(mapX(left), mapY(0));
+      ctx.lineTo(mapX(left), mapY(0.2));
+      ctx.lineTo(mapX(right), mapY(0.2));
+      ctx.lineTo(mapX(right), mapY(0));
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawGuidesAndPoints(x) {
+      const pdf = f(x);
+      const cdf = F(x);
+      const px = mapX(x);
+
+      if (showGuides.checked) {
+        ctx.setLineDash([6, 6]);
+        ctx.strokeStyle = '#2563eb';
+        ctx.lineWidth = 1.5;
+
+        ctx.beginPath();
+        ctx.moveTo(px, mapY(0));
+        ctx.lineTo(px, mapY(Math.max(pdf, cdf)));
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(mapX(xMin), mapY(cdf));
+        ctx.lineTo(px, mapY(cdf));
+        ctx.stroke();
+
+        if (pdf > 0) {
+          ctx.beginPath();
+          ctx.moveTo(mapX(xMin), mapY(pdf));
+          ctx.lineTo(px, mapY(pdf));
+          ctx.stroke();
+        }
+
+        ctx.setLineDash([]);
+      }
+
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--pdf').trim();
+      ctx.beginPath();
+      ctx.arc(px, mapY(pdf), 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--cdf').trim();
+      ctx.beginPath();
+      ctx.arc(px, mapY(cdf), 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#2563eb';
+      ctx.font = '15px Arial';
+      ctx.fillText(`x = ${fmt(x)}`, px + 8, mapY(0) - 12);
+    }
+
+    function updateFormula(x) {
+      if (!showFormula.checked) {
+        formulaBox.style.display = 'none';
+        return;
+      }
+
+      formulaBox.style.display = 'block';
+
+      const activeText = x < 0
+        ? 'Since x < 0, F(x) = 0 and f(x) = 0.'
+        : x <= 5
+          ? 'Since 0 ≤ x ≤ 5, F(x) = x/5 and f(x) = 1/5.'
+          : 'Since x > 5, F(x) = 1 and f(x) = 0.';
+
+      formulaBox.innerHTML = `
+        <div><strong>PDF:</strong> f(x) = 1/5 for 0 ≤ x ≤ 5, and 0 otherwise.</div>
+        <div><strong>CDF:</strong> F(x) = 0 for x &lt; 0; F(x) = x/5 for 0 ≤ x ≤ 5; F(x) = 1 for x &gt; 5.</div>
+        <div style="margin-top:8px; color:#2563eb;"><strong>Current case:</strong> ${activeText}</div>
+      `;
+    }
+
+    function render() {
+      const x = parseFloat(slider.value);
+      const pdf = f(x);
+      const cdf = F(x);
+
+      xValue.textContent = `x = ${fmt(x)}`;
+      pdfValue.textContent = fmt(pdf);
+      cdfValue.textContent = fmt(cdf);
+      updateFormula(x);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawAxes();
+      drawArea(x);
+      drawPDF();
+      drawCDF();
+      drawGuidesAndPoints(x);
+    }
+
+    slider.addEventListener('input', render);
+    showGuides.addEventListener('change', render);
+    showFormula.addEventListener('change', render);
+    showArea.addEventListener('change', render);
+
+    document.getElementById('toLeft').addEventListener('click', () => { slider.value = -0.5; render(); });
+    document.getElementById('toZero').addEventListener('click', () => { slider.value = 0; render(); });
+    document.getElementById('toMiddle').addEventListener('click', () => { slider.value = 2.5; render(); });
+    document.getElementById('toFive').addEventListener('click', () => { slider.value = 5; render(); });
+    document.getElementById('toRight').addEventListener('click', () => { slider.value = 5.5; render(); });
+
+    render();
+  </script>
+</body>
+</html>
