@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Normal PDF Explorer (Fixed Scale)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 24px;
+      background: #f7f7f7;
+      color: #222;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 28px;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .control-group {
+      display: grid;
+      grid-template-columns: 120px 1fr 100px;
+      gap: 12px;
+      align-items: center;
+    }
+    label {
+      font-weight: 600;
+    }
+    input[type="range"] {
+      width: 100%;
+    }
+    .value-box {
+      font-family: monospace;
+      background: #f0f0f0;
+      padding: 8px 10px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      background: #fff;
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+    .note {
+      margin-top: 14px;
+      font-size: 14px;
+      color: #555;
+      line-height: 1.4;
+    }
+    .formula {
+      margin-top: 10px;
+      font-size: 16px;
+      background: #fafafa;
+      border: 1px solid #e5e5e5;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-family: "Times New Roman", serif;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Normal PDF Explorer</h1>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="mu">Mean (μ)</label>
+        <input type="range" id="mu" min="-5" max="5" step="0.1" value="0" />
+        <div class="value-box" id="muValue">0.0</div>
+      </div>
+
+      <div class="control-group">
+        <label for="sigma">Std. Dev. (σ)</label>
+        <input type="range" id="sigma" min="0.3" max="3" step="0.1" value="1.0" />
+        <div class="value-box" id="sigmaValue">1.0</div>
+      </div>
+    </div>
+
+    <canvas id="plot" width="840" height="500"></canvas>
+
+    <div class="formula" id="formula"></div>
+
+    <div class="note">
+      The axes are fixed using the full slider ranges, so changing μ and σ makes the curve move and reshape without rescaling the graph.
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("plot");
+    const ctx = canvas.getContext("2d");
+
+    const muSlider = document.getElementById("mu");
+    const sigmaSlider = document.getElementById("sigma");
+    const muValue = document.getElementById("muValue");
+    const sigmaValue = document.getElementById("sigmaValue");
+    const formula = document.getElementById("formula");
+
+    // Fixed axis ranges based on the slider limits
+    const muMin = parseFloat(muSlider.min);
+    const muMax = parseFloat(muSlider.max);
+    const sigmaMin = parseFloat(sigmaSlider.min);
+    const sigmaMax = parseFloat(sigmaSlider.max);
+
+    const xMin = muMin - 2 * sigmaMax;
+    const xMax = muMax + 2 * sigmaMax;
+    const yMax = 1 / (sigmaMin * Math.sqrt(2 * Math.PI)) * 0.8;
+
+    const margin = { left: 70, right: 30, top: 30, bottom: 60 };
+    const plotWidth = canvas.width - margin.left - margin.right;
+    const plotHeight = canvas.height - margin.top - margin.bottom;
+
+    function normalPdf(x, mu, sigma) {
+      return (1 / (sigma * Math.sqrt(2 * Math.PI))) *
+             Math.exp(-0.5 * Math.pow((x - mu) / sigma, 2));
+    }
+
+    function xToCanvas(x) {
+      return margin.left + ((x - xMin) / (xMax - xMin)) * plotWidth;
+    }
+
+    function yToCanvas(y) {
+      return margin.top + plotHeight - (y / yMax) * plotHeight;
+    }
+
+    function drawAxes() {
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 1;
+
+      // x-axis
+      ctx.beginPath();
+      ctx.moveTo(margin.left, margin.top + plotHeight);
+      ctx.lineTo(margin.left + plotWidth, margin.top + plotHeight);
+      ctx.stroke();
+
+      // y-axis
+      ctx.beginPath();
+      ctx.moveTo(margin.left, margin.top);
+      ctx.lineTo(margin.left, margin.top + plotHeight);
+      ctx.stroke();
+
+      ctx.fillStyle = "#000";
+      ctx.font = "14px Arial";
+
+      // Fewer horizontal ticks
+      const xTicks = 6;
+      for (let i = 0; i <= xTicks; i++) {
+        const x = xMin + i * (xMax - xMin) / xTicks;
+        const cx = xToCanvas(x);
+        const cy = margin.top + plotHeight;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, cy + 6);
+        ctx.stroke();
+
+        ctx.textAlign = "center";
+        ctx.fillText(x.toFixed(1), cx, cy + 22);
+      }
+
+      // y ticks
+      const yTicks = 5;
+      for (let i = 0; i <= yTicks; i++) {
+        const y = i * yMax / yTicks;
+        const cx = margin.left;
+        const cy = yToCanvas(y);
+
+        ctx.beginPath();
+        ctx.moveTo(cx - 6, cy);
+        ctx.lineTo(cx, cy);
+        ctx.stroke();
+
+        ctx.textAlign = "right";
+        ctx.fillText(y.toFixed(2), cx - 10, cy + 4);
+      }
+
+      // Axis labels
+      ctx.font = "16px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("x", margin.left + plotWidth / 2, canvas.height - 18);
+
+      ctx.save();
+      ctx.translate(22, margin.top + plotHeight / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText("f(x)", 0, 0);
+      ctx.restore();
+    }
+
+    function drawCurve(mu, sigma) {
+      ctx.strokeStyle = "#1f77b4";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+
+      const steps = 800;
+      for (let i = 0; i <= steps; i++) {
+        const x = xMin + (i / steps) * (xMax - xMin);
+        const y = normalPdf(x, mu, sigma);
+        const cx = xToCanvas(x);
+        const cy = yToCanvas(y);
+
+        if (i === 0) {
+          ctx.moveTo(cx, cy);
+        } else {
+          ctx.lineTo(cx, cy);
+        }
+      }
+      ctx.stroke();
+    }
+
+    function drawMeanLine(mu) {
+      const cx = xToCanvas(mu);
+      ctx.save();
+      ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = "#cc0000";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx, margin.top);
+      ctx.lineTo(cx, margin.top + plotHeight);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle = "#cc0000";
+      ctx.font = "14px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("μ", cx, margin.top + 16);
+    }
+
+    function updatePlot() {
+      const mu = parseFloat(muSlider.value);
+      const sigma = parseFloat(sigmaSlider.value);
+
+      muValue.textContent = mu.toFixed(1);
+      sigmaValue.textContent = sigma.toFixed(1);
+
+      formula.innerHTML =
+        `f(x) = \\(\\frac{1}{${sigma.toFixed(1)}\\sqrt{2\\pi}}\\exp\\left[-\\frac{1}{2}\\left(\\frac{x-${mu.toFixed(1)}}{${sigma.toFixed(1)}}\\right)^2\\right]\\)`;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawAxes();
+      drawCurve(mu, sigma);
+      drawMeanLine(mu);
+    }
+
+    muSlider.addEventListener("input", updatePlot);
+    sigmaSlider.addEventListener("input", updatePlot);
+
+    updatePlot();
+  </script>
+</body>
+</html>
