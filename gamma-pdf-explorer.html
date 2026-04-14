@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Gamma PDF Explorer (Fixed Scale)</title>
+<style>
+body {font-family: Arial; margin:24px; background:#f7f7f7;}
+.container {max-width:950px; margin:auto; background:white; padding:24px; border-radius:12px;}
+.control-group {display:grid; grid-template-columns:140px 1fr 110px; gap:10px; margin-bottom:12px;}
+.value-box {background:#eee; padding:6px; text-align:center;}
+canvas {border:1px solid #ccc;}
+</style>
+</head>
+<body>
+<div class="container">
+<h2>Gamma PDF Explorer</h2>
+
+<div class="control-group">
+<label>Shape (r)</label>
+<input type="range" id="r" min="0.5" max="10" step="0.1" value="2.0">
+<div class="value-box" id="rVal">2.0</div>
+</div>
+
+<div class="control-group">
+<label>Rate (λ)</label>
+<input type="range" id="lambda" min="0.2" max="5" step="0.1" value="1.0">
+<div class="value-box" id="lambdaVal">1.0</div>
+</div>
+
+<div class="control-group">
+<label>Max y</label>
+<input type="range" id="yMax" min="0.2" max="3" step="0.05" value="1.2">
+<div class="value-box" id="yMaxVal">1.2</div>
+</div>
+
+<canvas id="plot" width="860" height="520"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById("plot");
+const ctx = canvas.getContext("2d");
+
+const rSlider = document.getElementById("r");
+const lambdaSlider = document.getElementById("lambda");
+const yMaxSlider = document.getElementById("yMax");
+
+const rVal = document.getElementById("rVal");
+const lambdaVal = document.getElementById("lambdaVal");
+const yMaxVal = document.getElementById("yMaxVal");
+
+const margin = {left:70,right:30,top:30,bottom:60};
+const W = canvas.width - margin.left - margin.right;
+const H = canvas.height - margin.top - margin.bottom;
+
+const xMin = 0;
+const xMax = 20;
+
+function gamma(z){
+  const g=7;
+  const p=[0.99999999999980993,676.5203681218851,-1259.1392167224028,
+  771.32342877765313,-176.61502916214059,12.507343278686905,
+  -0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  if(z<0.5){return Math.PI/(Math.sin(Math.PI*z)*gamma(1-z));}
+  z-=1;
+  let x=p[0];
+  for(let i=1;i<g+2;i++){x+=p[i]/(z+i);}
+  const t=z+g+0.5;
+  return Math.sqrt(2*Math.PI)*Math.pow(t,z+0.5)*Math.exp(-t)*x;
+}
+
+function pdf(x,r,lambda){
+  if(x<=0) return 0;
+  return Math.pow(lambda,r)*Math.pow(x,r-1)*Math.exp(-lambda*x)/gamma(r);
+}
+
+function xC(x){return margin.left+(x-xMin)/(xMax-xMin)*W;}
+function yC(y,yMax){return margin.top+H-(y/yMax)*H;}
+
+function drawAxes(yMax){
+  ctx.beginPath();
+  ctx.moveTo(margin.left,margin.top+H);
+  ctx.lineTo(margin.left+W,margin.top+H);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(margin.left,margin.top);
+  ctx.lineTo(margin.left,margin.top+H);
+  ctx.stroke();
+
+  const ticks=5;
+  for(let i=0;i<=ticks;i++){
+    const x=xMin+i*(xMax-xMin)/ticks;
+    const cx=xC(x);
+    ctx.fillText(x.toFixed(1),cx,margin.top+H+20);
+  }
+}
+
+function draw(r,lambda,yMax){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawAxes(yMax);
+  ctx.beginPath();
+  for(let i=0;i<=800;i++){
+    const x=xMin+i/800*(xMax-xMin);
+    const y=pdf(x,r,lambda);
+    const cx=xC(x);
+    const cy=yC(Math.min(y,yMax),yMax);
+    if(i==0) ctx.moveTo(cx,cy); else ctx.lineTo(cx,cy);
+  }
+  ctx.stroke();
+}
+
+function update(){
+  const r=parseFloat(rSlider.value);
+  const lambda=parseFloat(lambdaSlider.value);
+  const yMax=parseFloat(yMaxSlider.value);
+  rVal.textContent=r.toFixed(1);
+  lambdaVal.textContent=lambda.toFixed(1);
+  yMaxVal.textContent=yMax.toFixed(2);
+  draw(r,lambda,yMax);
+}
+
+rSlider.oninput=lambdaSlider.oninput=yMaxSlider.oninput=update;
+update();
+</script>
+
+</body>
+</html>
