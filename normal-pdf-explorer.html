@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Normal PDF Explorer (Fixed Scale)</title>
+  <title>Normal PDF Explorer (One Inflection Point)</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -97,6 +97,7 @@
 
     <div class="note">
       The axes are fixed using the full slider ranges, so changing μ and σ makes the curve move and reshape without rescaling the graph.
+      One inflection point is shown on the curve.
     </div>
   </div>
 
@@ -110,15 +111,14 @@
     const sigmaValue = document.getElementById("sigmaValue");
     const formula = document.getElementById("formula");
 
-    // Fixed axis ranges based on the slider limits
     const muMin = parseFloat(muSlider.min);
     const muMax = parseFloat(muSlider.max);
     const sigmaMin = parseFloat(sigmaSlider.min);
     const sigmaMax = parseFloat(sigmaSlider.max);
 
-    const xMin = muMin - 2 * sigmaMax;
-    const xMax = muMax + 2 * sigmaMax;
-    const yMax = 1 / (sigmaMin * Math.sqrt(2 * Math.PI)) * 0.8;
+    const xMin = -6;
+    const xMax = 6;
+    const yMax = 1.2;
 
     const margin = { left: 70, right: 30, top: 30, bottom: 60 };
     const plotWidth = canvas.width - margin.left - margin.right;
@@ -135,6 +135,16 @@
 
     function yToCanvas(y) {
       return margin.top + plotHeight - (y / yMax) * plotHeight;
+    }
+
+    // removed chooseTickStep
+function _unused(minVal, maxVal, targetTicks) {
+      const rawStep = (maxVal - minVal) / targetTicks;
+      const choices = [0.5, 1, 2, 5, 10];
+      for (const step of choices) {
+        if (rawStep <= step) return step;
+      }
+      return 10;
     }
 
     function drawAxes() {
@@ -156,10 +166,8 @@
       ctx.fillStyle = "#000";
       ctx.font = "14px Arial";
 
-      // Fewer horizontal ticks
-      const xTicks = 6;
-      for (let i = 0; i <= xTicks; i++) {
-        const x = xMin + i * (xMax - xMin) / xTicks;
+      // Integer ticks at each integer value
+      for (let x = Math.ceil(xMin); x <= Math.floor(xMax); x++) {
         const cx = xToCanvas(x);
         const cy = margin.top + plotHeight;
 
@@ -169,13 +177,14 @@
         ctx.stroke();
 
         ctx.textAlign = "center";
-        ctx.fillText(x.toFixed(1), cx, cy + 22);
+        ctx.fillText(x.toString(), cx, cy + 22);
       }
 
       // y ticks
       const yTicks = 5;
+      const stepY = 0.1 * Math.ceil((yMax / yTicks) / 0.1);
       for (let i = 0; i <= yTicks; i++) {
-        const y = i * yMax / yTicks;
+        const y = i * stepY;
         const cx = margin.left;
         const cy = yToCanvas(y);
 
@@ -221,22 +230,32 @@
       ctx.stroke();
     }
 
-    function drawMeanLine(mu) {
+    function drawMeanLine(mu, sigma) {
       const cx = xToCanvas(mu);
+      const peakY = normalPdf(mu, mu, sigma);
+      const cy = yToCanvas(peakY);
+
       ctx.save();
       ctx.setLineDash([6, 6]);
       ctx.strokeStyle = "#cc0000";
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(cx, margin.top);
+      ctx.moveTo(cx, cy);
       ctx.lineTo(cx, margin.top + plotHeight);
       ctx.stroke();
       ctx.restore();
+    }
 
-      ctx.fillStyle = "#cc0000";
-      ctx.font = "14px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText("μ", cx, margin.top + 16);
+    function drawInflectionPoint(mu, sigma) {
+      const x = mu + sigma;
+      const y = normalPdf(x, mu, sigma);
+      const cx = xToCanvas(x);
+      const cy = yToCanvas(y);
+
+      ctx.fillStyle = "#008000";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
+      ctx.fill();
     }
 
     function updatePlot() {
@@ -247,12 +266,13 @@
       sigmaValue.textContent = sigma.toFixed(1);
 
       formula.innerHTML =
-        `f(x) = \\(\\frac{1}{${sigma.toFixed(1)}\\sqrt{2\\pi}}\\exp\\left[-\\frac{1}{2}\\left(\\frac{x-${mu.toFixed(1)}}{${sigma.toFixed(1)}}\\right)^2\\right]\\)`;
+        `f(x) = (1 / (${sigma.toFixed(1)}√(2π))) exp[-(1/2)((x - ${mu.toFixed(1)}) / ${sigma.toFixed(1)})²]`;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       drawAxes();
       drawCurve(mu, sigma);
-      drawMeanLine(mu);
+      drawMeanLine(mu, sigma);
+      drawInflectionPoint(mu, sigma);
     }
 
     muSlider.addEventListener("input", updatePlot);
