@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beta PDF Explorer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 24px;
+      background: #f7f7f7;
+      color: #222;
+    }
+    .container {
+      max-width: 950px;
+      margin: 0 auto;
+      background: white;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    h1 {
+      margin-top: 0;
+      font-size: 28px;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .control-group {
+      display: grid;
+      grid-template-columns: 140px 1fr 110px;
+      gap: 12px;
+      align-items: center;
+    }
+    label {
+      font-weight: 600;
+    }
+    input[type="range"] {
+      width: 100%;
+    }
+    .value-box {
+      font-family: monospace;
+      background: #f0f0f0;
+      padding: 8px 10px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      background: #fff;
+      width: 100%;
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+    .formula {
+      margin-top: 10px;
+      font-size: 16px;
+      background: #fafafa;
+      border: 1px solid #e5e5e5;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-family: "Times New Roman", serif;
+      line-height: 1.5;
+    }
+    .note {
+      margin-top: 14px;
+      font-size: 14px;
+      color: #555;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Beta PDF Explorer</h1>
+
+    <div class="controls">
+      <div class="control-group">
+        <label for="a">Shape a</label>
+        <input type="range" id="a" min="0.5" max="10" step="0.1" value="2.0" />
+        <div class="value-box" id="aValue">2.0</div>
+      </div>
+
+      <div class="control-group">
+        <label for="b">Shape b</label>
+        <input type="range" id="b" min="0.5" max="10" step="0.1" value="2.0" />
+        <div class="value-box" id="bValue">2.0</div>
+      </div>
+
+      <div class="control-group">
+        <label for="yMaxSlider">Max y</label>
+        <input type="range" id="yMaxSlider" min="0.2" max="6.0" step="0.1" value="3.0" />
+        <div class="value-box" id="yMaxValue">3.00</div>
+      </div>
+    </div>
+
+    <canvas id="plot" width="860" height="520"></canvas>
+
+    <div class="formula" id="formula"></div>
+
+    <div class="note">
+      The x-axis is fixed on [0, 1], so changing a and b makes the graph move and reshape without changing the horizontal scale.
+      The y-axis maximum is controlled separately with the Max y slider.
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("plot");
+    const ctx = canvas.getContext("2d");
+
+    const aSlider = document.getElementById("a");
+    const bSlider = document.getElementById("b");
+    const yMaxSlider = document.getElementById("yMaxSlider");
+
+    const aValue = document.getElementById("aValue");
+    const bValue = document.getElementById("bValue");
+    const yMaxValue = document.getElementById("yMaxValue");
+    const formula = document.getElementById("formula");
+
+    const margin = { left: 70, right: 30, top: 30, bottom: 60 };
+    const plotWidth = canvas.width - margin.left - margin.right;
+    const plotHeight = canvas.height - margin.top - margin.bottom;
+
+    const xMin = 0;
+    const xMax = 1;
+
+    function gammaFunc(z) {
+      const g = 7;
+      const p = [
+        0.99999999999980993,
+        676.5203681218851,
+        -1259.1392167224028,
+        771.32342877765313,
+        -176.61502916214059,
+        12.507343278686905,
+        -0.13857109526572012,
+        9.9843695780195716e-6,
+        1.5056327351493116e-7
+      ];
+
+      if (z < 0.5) {
+        return Math.PI / (Math.sin(Math.PI * z) * gammaFunc(1 - z));
+      }
+
+      z -= 1;
+      let x = p[0];
+      for (let i = 1; i < g + 2; i++) {
+        x += p[i] / (z + i);
+      }
+      const t = z + g + 0.5;
+      return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
+    }
+
+    function betaFunc(a, b) {
+      return gammaFunc(a) * gammaFunc(b) / gammaFunc(a + b);
+    }
+
+    function betaPdf(x, a, b) {
+      if (x <= 0 || x >= 1) return 0;
+      return Math.pow(x, a - 1) * Math.pow(1 - x, b - 1) / betaFunc(a, b);
+    }
+
+    function xToCanvas(x) {
+      return margin.left + ((x - xMin) / (xMax - xMin)) * plotWidth;
+    }
+
+    function yToCanvas(y, yMax) {
+      return margin.top + plotHeight - (y / yMax) * plotHeight;
+    }
+
+    function drawAxes(yMax) {
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 1;
+
+      ctx.beginPath();
+      ctx.moveTo(margin.left, margin.top + plotHeight);
+      ctx.lineTo(margin.left + plotWidth, margin.top + plotHeight);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(margin.left, margin.top);
+      ctx.lineTo(margin.left, margin.top + plotHeight);
+      ctx.stroke();
+
+      ctx.fillStyle = "#000";
+      ctx.font = "14px Arial";
+
+      const xTicks = 4;
+      for (let i = 0; i <= xTicks; i++) {
+        const x = xMin + i * (xMax - xMin) / xTicks;
+        const cx = xToCanvas(x);
+        const cy = margin.top + plotHeight;
+
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx, cy + 6);
+        ctx.stroke();
+
+        ctx.textAlign = "center";
+        ctx.fillText(x.toFixed(2), cx, cy + 22);
+      }
+
+      const yTicks = 5;
+      for (let i = 0; i <= yTicks; i++) {
+        const y = i * yMax / yTicks;
+        const cx = margin.left;
+        const cy = yToCanvas(y, yMax);
+
+        ctx.beginPath();
+        ctx.moveTo(cx - 6, cy);
+        ctx.lineTo(cx, cy);
+        ctx.stroke();
+
+        ctx.textAlign = "right";
+        ctx.fillText(y.toFixed(2), cx - 10, cy + 4);
+      }
+
+      ctx.font = "16px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("x", margin.left + plotWidth / 2, canvas.height - 18);
+
+      ctx.save();
+      ctx.translate(22, margin.top + plotHeight / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillText("f(x)", 0, 0);
+      ctx.restore();
+    }
+
+    function drawCurve(a, b, yMax) {
+      ctx.strokeStyle = "#1f77b4";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+
+      const steps = 1200;
+      let started = false;
+
+      for (let i = 1; i < steps; i++) {
+        const x = xMin + (i / steps) * (xMax - xMin);
+        let y = betaPdf(x, a, b);
+
+        if (!Number.isFinite(y) || y > yMax * 10) {
+          y = yMax * 10;
+        }
+
+        const cx = xToCanvas(x);
+        const cy = yToCanvas(Math.min(y, yMax), yMax);
+
+        if (!started) {
+          ctx.moveTo(cx, cy);
+          started = true;
+        } else {
+          ctx.lineTo(cx, cy);
+        }
+      }
+
+      ctx.stroke();
+    }
+
+    function updatePlot() {
+      const a = parseFloat(aSlider.value);
+      const b = parseFloat(bSlider.value);
+      const yMax = parseFloat(yMaxSlider.value);
+
+      aValue.textContent = a.toFixed(1);
+      bValue.textContent = b.toFixed(1);
+      yMaxValue.textContent = yMax.toFixed(2);
+
+      formula.innerHTML =
+        "f(x) = (1 / B(" + a.toFixed(1) + ", " + b.toFixed(1) + ")) x^(" +
+        (a - 1).toFixed(1) + ") (1 - x)^(" + (b - 1).toFixed(1) + "),  0 < x < 1";
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawAxes(yMax);
+      drawCurve(a, b, yMax);
+    }
+
+    aSlider.addEventListener("input", updatePlot);
+    bSlider.addEventListener("input", updatePlot);
+    yMaxSlider.addEventListener("input", updatePlot);
+
+    updatePlot();
+  </script>
+</body>
+</html>
