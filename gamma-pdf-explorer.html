@@ -29,7 +29,7 @@ canvas {border:1px solid #ccc;}
 
 <div class="control-group">
 <label>Max y</label>
-<input type="range" id="yMax" min="0.2" max="3" step="0.05" value="1.2">
+<input type="range" id="yMax" min="0.2" max="3.1" step="0.05" value="1.2">
 <div class="value-box" id="yMaxVal">1.2</div>
 </div>
 
@@ -54,6 +54,7 @@ const H = canvas.height - margin.top - margin.bottom;
 
 const xMin = 0;
 const xMax = 20;
+const TOP_CLIP_Y = 3.1;
 
 function gamma(z){
   const g = 7;
@@ -68,16 +69,16 @@ function gamma(z){
     9.9843695780195716e-6,
     1.5056327351493116e-7
   ];
-  if(z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
+  if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
   z -= 1;
   let x = p[0];
-  for(let i = 1; i < g + 2; i++) x += p[i] / (z + i);
+  for (let i = 1; i < g + 2; i++) x += p[i] / (z + i);
   const t = z + g + 0.5;
   return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
 }
 
 function pdf(x, r, lambda){
-  if(x <= 0) return 0;
+  if (x <= 0) return 0;
   return Math.pow(lambda, r) * Math.pow(x, r - 1) * Math.exp(-lambda * x) / gamma(r);
 }
 
@@ -139,25 +140,46 @@ function drawAxes(yMax){
   }
 }
 
+// For r < 1, find the first x where pdf(x) <= targetY.
+// This lets the curve start where it enters the visible window if Max y = 3.1.
+function findStartXForTopClip(r, lambda, targetY){
+  const step = 1e-4;
+  let x = step;
+
+  while (x <= xMax) {
+    if (pdf(x, r, lambda) <= targetY) return x;
+    x += step;
+  }
+  return xMax;
+}
+
 function draw(r, lambda, yMax){
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawAxes(yMax);
 
-  // Draw pdf curve in blue.
-  // Start at a small positive x to avoid the vertical line at x=0 when r=1.
-  const step = (xMax - xMin) / 2000;
+  let startX;
+  const step = (xMax - xMin) / 3000;
+
+  if (r > 1) {
+    startX = 0;
+  } else if (r < 1) {
+    startX = findStartXForTopClip(r, lambda, TOP_CLIP_Y);
+  } else {
+    // r = 1: avoid drawing the artificial vertical segment at x=0
+    startX = step;
+  }
 
   ctx.beginPath();
   ctx.strokeStyle = "blue";
   ctx.lineWidth = 2;
 
   let started = false;
-  for(let x = step; x <= xMax; x += step){
+  for (let x = startX; x <= xMax; x += step) {
     const y = pdf(x, r, lambda);
     const cx = xC(x);
     const cy = yC(Math.min(y, yMax), yMax);
 
-    if(!started){
+    if (!started) {
       ctx.moveTo(cx, cy);
       started = true;
     } else {
