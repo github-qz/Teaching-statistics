@@ -56,80 +56,134 @@ const xMin = 0;
 const xMax = 20;
 
 function gamma(z){
-  const g=7;
-  const p=[0.99999999999980993,676.5203681218851,-1259.1392167224028,
-  771.32342877765313,-176.61502916214059,12.507343278686905,
-  -0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
-  if(z<0.5){return Math.PI/(Math.sin(Math.PI*z)*gamma(1-z));}
-  z-=1;
-  let x=p[0];
-  for(let i=1;i<g+2;i++){x+=p[i]/(z+i);}
-  const t=z+g+0.5;
-  return Math.sqrt(2*Math.PI)*Math.pow(t,z+0.5)*Math.exp(-t)*x;
+  const g = 7;
+  const p = [
+    0.99999999999980993,
+    676.5203681218851,
+    -1259.1392167224028,
+    771.32342877765313,
+    -176.61502916214059,
+    12.507343278686905,
+    -0.13857109526572012,
+    9.9843695780195716e-6,
+    1.5056327351493116e-7
+  ];
+  if(z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
+  z -= 1;
+  let x = p[0];
+  for(let i = 1; i < g + 2; i++) x += p[i] / (z + i);
+  const t = z + g + 0.5;
+  return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
 }
 
-function pdf(x,r,lambda){
-  if(x<=0) return 0;
-  return Math.pow(lambda,r)*Math.pow(x,r-1)*Math.exp(-lambda*x)/gamma(r);
+function pdf(x, r, lambda){
+  if(x <= 0) return 0;
+  return Math.pow(lambda, r) * Math.pow(x, r - 1) * Math.exp(-lambda * x) / gamma(r);
 }
 
-function xC(x){return margin.left+(x-xMin)/(xMax-xMin)*W;}
-function yC(y,yMax){return margin.top+H-(y/yMax)*H;}
+function xC(x){
+  return margin.left + (x - xMin) / (xMax - xMin) * W;
+}
+
+function yC(y, yMax){
+  return margin.top + H - (y / yMax) * H;
+}
 
 function drawAxes(yMax){
   ctx.strokeStyle = "black";
   ctx.fillStyle = "black";
   ctx.lineWidth = 1;
 
+  // x-axis
   ctx.beginPath();
-  ctx.moveTo(margin.left,margin.top+H);
-  ctx.lineTo(margin.left+W,margin.top+H);
+  ctx.moveTo(margin.left, margin.top + H);
+  ctx.lineTo(margin.left + W, margin.top + H);
   ctx.stroke();
 
+  // y-axis
   ctx.beginPath();
-  ctx.moveTo(margin.left,margin.top);
-  ctx.lineTo(margin.left,margin.top+H);
+  ctx.moveTo(margin.left, margin.top);
+  ctx.lineTo(margin.left, margin.top + H);
   ctx.stroke();
 
-  const ticks=5;
-  for(let i=0;i<=ticks;i++){
-    const x=xMin+i*(xMax-xMin)/ticks;
-    const cx=xC(x);
-    ctx.fillText(x.toFixed(1),cx,margin.top+H+20);
+  // x-axis ticks and labels
+  const xTicks = 5;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  for(let i = 0; i <= xTicks; i++){
+    const x = xMin + i * (xMax - xMin) / xTicks;
+    const cx = xC(x);
+
+    ctx.beginPath();
+    ctx.moveTo(cx, margin.top + H);
+    ctx.lineTo(cx, margin.top + H + 6);
+    ctx.stroke();
+
+    ctx.fillText(x.toFixed(1), cx, margin.top + H + 10);
+  }
+
+  // y-axis ticks and labels
+  const yTicks = 5;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  for(let i = 0; i <= yTicks; i++){
+    const y = i * yMax / yTicks;
+    const cy = yC(y, yMax);
+
+    ctx.beginPath();
+    ctx.moveTo(margin.left - 6, cy);
+    ctx.lineTo(margin.left, cy);
+    ctx.stroke();
+
+    ctx.fillText(y.toFixed(2), margin.left - 10, cy);
   }
 }
 
-function draw(r,lambda,yMax){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+function draw(r, lambda, yMax){
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawAxes(yMax);
+
+  // Draw pdf curve in blue.
+  // Start at a small positive x to avoid the vertical line at x=0 when r=1.
+  const step = (xMax - xMin) / 2000;
 
   ctx.beginPath();
   ctx.strokeStyle = "blue";
   ctx.lineWidth = 2;
 
-  for(let i=0;i<=800;i++){
-    const x=xMin+i/800*(xMax-xMin);
-    const y=pdf(x,r,lambda);
-    const cx=xC(x);
-    const cy=yC(Math.min(y,yMax),yMax);
-    if(i==0) ctx.moveTo(cx,cy); else ctx.lineTo(cx,cy);
+  let started = false;
+  for(let x = step; x <= xMax; x += step){
+    const y = pdf(x, r, lambda);
+    const cx = xC(x);
+    const cy = yC(Math.min(y, yMax), yMax);
+
+    if(!started){
+      ctx.moveTo(cx, cy);
+      started = true;
+    } else {
+      ctx.lineTo(cx, cy);
+    }
   }
   ctx.stroke();
 }
 
 function update(){
-  const r=parseFloat(rSlider.value);
-  const lambda=parseFloat(lambdaSlider.value);
-  const yMax=parseFloat(yMaxSlider.value);
-  rVal.textContent=r.toFixed(1);
-  lambdaVal.textContent=lambda.toFixed(1);
-  yMaxVal.textContent=yMax.toFixed(2);
-  draw(r,lambda,yMax);
+  const r = parseFloat(rSlider.value);
+  const lambda = parseFloat(lambdaSlider.value);
+  const yMax = parseFloat(yMaxSlider.value);
+
+  rVal.textContent = r.toFixed(1);
+  lambdaVal.textContent = lambda.toFixed(1);
+  yMaxVal.textContent = yMax.toFixed(2);
+
+  draw(r, lambda, yMax);
 }
 
-rSlider.oninput=lambdaSlider.oninput=yMaxSlider.oninput=update;
+rSlider.oninput = update;
+lambdaSlider.oninput = update;
+yMaxSlider.oninput = update;
+
 update();
 </script>
-
 </body>
 </html>
