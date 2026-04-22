@@ -77,6 +77,10 @@ function xC(x){return margin.left+(x-xMin)/(xMax-xMin)*W;}
 function yC(y,yMax){return margin.top+H-(y/yMax)*H;}
 
 function drawAxes(yMax){
+  ctx.strokeStyle = "black";
+  ctx.fillStyle = "black";
+  ctx.lineWidth = 1;
+
   ctx.beginPath();
   ctx.moveTo(margin.left,margin.top+H);
   ctx.lineTo(margin.left+W,margin.top+H);
@@ -98,7 +102,11 @@ function drawAxes(yMax){
 function draw(r,lambda,yMax){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   drawAxes(yMax);
+
   ctx.beginPath();
+  ctx.strokeStyle = "blue";
+  ctx.lineWidth = 2;
+
   for(let i=0;i<=800;i++){
     const x=xMin+i/800*(xMax-xMin);
     const y=pdf(x,r,lambda);
