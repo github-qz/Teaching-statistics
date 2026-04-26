@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Covariance and Correlation Explorer</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  margin: 24px;
+  background: #f7f7f7;
+}
+
+.container {
+  max-width: 980px;
+  margin: auto;
+  background: white;
+  padding: 24px;
+  border-radius: 14px;
+}
+
+.topbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+button {
+  padding: 8px 12px;
+  border: 1px solid #bbb;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.statbox {
+  background: #f3f3f3;
+  padding: 12px;
+  border-radius: 10px;
+}
+
+.statlabel {
+  font-size: 13px;
+}
+
+.statvalue {
+  font-size: 18px;
+  font-weight: bold;
+}
+
+canvas {
+  border: 1px solid #ccc;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<h2>Covariance and Correlation Explorer</h2>
+
+<div class="topbar">
+<button id="undoBtn">Undo Last Point</button>
+<button id="clearBtn">Clear All Points</button>
+
+<label>
+<input type="checkbox" id="showMeans">
+Show means of X and Y
+</label>
+</div>
+
+<div class="stats">
+<div class="statbox">
+<div class="statlabel">Number of points</div>
+<div class="statvalue" id="nVal">0</div>
+</div>
+
+<div class="statbox">
+<div class="statlabel">Mean of X</div>
+<div class="statvalue" id="xbarVal">—</div>
+</div>
+
+<div class="statbox">
+<div class="statlabel">Mean of Y</div>
+<div class="statvalue" id="ybarVal">—</div>
+</div>
+
+<div class="statbox">
+<div class="statlabel">Covariance</div>
+<div class="statvalue" id="covVal">—</div>
+</div>
+
+<div class="statbox">
+<div class="statlabel">Correlation coefficient</div>
+<div class="statvalue" id="corrVal">—</div>
+</div>
+</div>
+
+<canvas id="plot" width="820" height="520"></canvas>
+
+</div>
+
+<script>
+const canvas = document.getElementById("plot");
+const ctx = canvas.getContext("2d");
+
+let points = [];
+
+const margin = {left:70,right:30,top:30,bottom:60};
+const W = canvas.width - margin.left - margin.right;
+const H = canvas.height - margin.top - margin.bottom;
+
+const xMin = 0, xMax = 10;
+const yMin = 0, yMax = 10;
+
+function xC(x){ return margin.left + (x-xMin)/(xMax-xMin)*W; }
+function yC(y){ return margin.top + H - (y-yMin)/(yMax-yMin)*H; }
+
+function stats(){
+  const n = points.length;
+  if(n === 0) return {};
+
+  let sx=0, sy=0;
+  points.forEach(p => { sx+=p.x; sy+=p.y; });
+
+  const xbar = sx/n;
+  const ybar = sy/n;
+
+  let sxy=0, sxx=0, syy=0;
+
+  points.forEach(p=>{
+    const dx = p.x - xbar;
+    const dy = p.y - ybar;
+    sxy += dx*dy;
+    sxx += dx*dx;
+    syy += dy*dy;
+  });
+
+  const cov = n>1 ? sxy/(n-1) : NaN;
+  const corr = (sxx===0||syy===0) ? NaN :
+    cov / Math.sqrt((sxx/(n-1))*(syy/(n-1)));
+
+  return {n,xbar,ybar,cov,corr};
+}
+
+function drawAxes(){
+  ctx.strokeStyle="black";
+
+  ctx.beginPath();
+  ctx.moveTo(margin.left, margin.top+H);
+  ctx.lineTo(margin.left+W, margin.top+H);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(margin.left, margin.top);
+  ctx.lineTo(margin.left, margin.top+H);
+  ctx.stroke();
+}
+
+function redraw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  drawAxes();
+
+  points.forEach(p=>{
+    ctx.beginPath();
+    ctx.arc(xC(p.x), yC(p.y), 5, 0, 2*Math.PI);
+    ctx.fillStyle="blue";
+    ctx.fill();
+  });
+
+  const s = stats();
+
+  document.getElementById("nVal").textContent = s.n || 0;
+  document.getElementById("xbarVal").textContent = s.xbar?.toFixed(3) || "—";
+  document.getElementById("ybarVal").textContent = s.ybar?.toFixed(3) || "—";
+  document.getElementById("covVal").textContent = s.cov?.toFixed(3) || "—";
+  document.getElementById("corrVal").textContent = s.corr?.toFixed(3) || "—";
+
+  if(document.getElementById("showMeans").checked && s.n){
+    // vertical line
+    ctx.strokeStyle="red";
+    ctx.beginPath();
+    ctx.moveTo(xC(s.xbar), margin.top);
+    ctx.lineTo(xC(s.xbar), margin.top+H);
+    ctx.stroke();
+
+    // horizontal line
+    ctx.strokeStyle="purple";
+    ctx.beginPath();
+    ctx.moveTo(margin.left, yC(s.ybar));
+    ctx.lineTo(margin.left+W, yC(s.ybar));
+    ctx.stroke();
+
+    // μₓ label
+    ctx.fillStyle="red";
+    ctx.font="14px Arial";
+    ctx.textAlign="center";
+    ctx.fillText("μₓ", xC(s.xbar), margin.top+H+12);
+
+    // μᵧ label
+    ctx.fillStyle="purple";
+    ctx.textAlign="right";
+    ctx.textBaseline="middle";
+    ctx.fillText("μᵧ", margin.left-8, yC(s.ybar));
+  }
+}
+
+canvas.addEventListener("click", e=>{
+  const rect = canvas.getBoundingClientRect();
+
+  const x = (e.clientX-rect.left-margin.left)/W*(xMax-xMin)+xMin;
+  const y = yMax-(e.clientY-rect.top-margin.top)/H*(yMax-yMin);
+
+  points.push({x,y});
+  redraw();
+});
+
+document.getElementById("undoBtn").onclick = ()=>{
+  points.pop();
+  redraw();
+};
+
+document.getElementById("clearBtn").onclick = ()=>{
+  points=[];
+  redraw();
+};
+
+document.getElementById("showMeans").onchange = redraw;
+
+redraw();
+</script>
+</body>
+</html>
