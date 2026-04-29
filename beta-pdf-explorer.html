@@ -1,288 +1,217 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Beta PDF Explorer</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 24px;
-      background: #f7f7f7;
-      color: #222;
-    }
-    .container {
-      max-width: 950px;
-      margin: 0 auto;
-      background: white;
-      padding: 24px;
-      border-radius: 12px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
-    }
-    h1 {
-      margin-top: 0;
-      font-size: 28px;
-    }
-    .controls {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-    .control-group {
-      display: grid;
-      grid-template-columns: 140px 1fr 110px;
-      gap: 12px;
-      align-items: center;
-    }
-    label {
-      font-weight: 600;
-    }
-    input[type="range"] {
-      width: 100%;
-    }
-    .value-box {
-      font-family: monospace;
-      background: #f0f0f0;
-      padding: 8px 10px;
-      border-radius: 8px;
-      text-align: center;
-    }
-    canvas {
-      border: 1px solid #ccc;
-      background: #fff;
-      width: 100%;
-      max-width: 100%;
-      height: auto;
-      display: block;
-    }
-    .formula {
-      margin-top: 10px;
-      font-size: 16px;
-      background: #fafafa;
-      border: 1px solid #e5e5e5;
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-family: "Times New Roman", serif;
-      line-height: 1.5;
-    }
-    .note {
-      margin-top: 14px;
-      font-size: 14px;
-      color: #555;
-      line-height: 1.4;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Beta Density Explorer</title>
+
+<style>
+body {
+  font-family: Arial;
+  background: #f7f7f7;
+  margin: 30px;
+}
+
+.container {
+  max-width: 900px;
+  margin: auto;
+  background: white;
+  padding: 25px;
+  border-radius: 10px;
+}
+
+label {
+  width: 120px;
+  display: inline-block;
+}
+
+input[type="range"] {
+  width: 400px;
+}
+
+.value {
+  display: inline-block;
+  width: 60px;
+  text-align: right;
+  font-family: monospace;
+}
+
+svg {
+  width: 100%;
+  height: 500px;
+  border: 1px solid #ccc;
+}
+
+.axis { stroke: black; }
+.grid { stroke: #ddd; }
+.tick { stroke: black; }
+
+.pdf {
+  fill: none;
+  stroke: steelblue;
+  stroke-width: 3;
+}
+</style>
 </head>
+
 <body>
-  <div class="container">
-    <h1>Beta PDF Explorer</h1>
 
-    <div class="controls">
-      <div class="control-group">
-        <label for="a">Shape a</label>
-        <input type="range" id="a" min="0.5" max="10" step="0.1" value="2.0" />
-        <div class="value-box" id="aValue">2.0</div>
-      </div>
+<div class="container">
+<h2>Beta Density Explorer</h2>
 
-      <div class="control-group">
-        <label for="b">Shape b</label>
-        <input type="range" id="b" min="0.5" max="10" step="0.1" value="2.0" />
-        <div class="value-box" id="bValue">2.0</div>
-      </div>
+<div>
+<label>a:</label>
+<input id="aSlider" type="range" min="0.2" max="10" step="0.1" value="2">
+<span id="aVal" class="value">2.0</span>
+</div>
 
-      <div class="control-group">
-        <label for="yMaxSlider">Max y</label>
-        <input type="range" id="yMaxSlider" min="0.2" max="6.0" step="0.1" value="3.0" />
-        <div class="value-box" id="yMaxValue">3.00</div>
-      </div>
-    </div>
+<div>
+<label>b:</label>
+<input id="bSlider" type="range" min="0.2" max="10" step="0.1" value="2">
+<span id="bVal" class="value">2.0</span>
+</div>
 
-    <canvas id="plot" width="860" height="520"></canvas>
+<div>
+<label>Max y:</label>
+<input id="ySlider" type="range" min="0.2" max="6" step="0.1" value="3">
+<span id="yVal" class="value">3.0</span>
+</div>
 
-    <div class="formula" id="formula"></div>
+<svg id="plot"></svg>
+</div>
 
-    <div class="note">
-      The x-axis is fixed on [0, 1], so changing a and b makes the graph move and reshape without changing the horizontal scale.
-      The y-axis maximum is controlled separately with the Max y slider.
-    </div>
-  </div>
+<script>
+const svg = document.getElementById("plot");
 
-  <script>
-    const canvas = document.getElementById("plot");
-    const ctx = canvas.getContext("2d");
+const aSlider = document.getElementById("aSlider");
+const bSlider = document.getElementById("bSlider");
+const ySlider = document.getElementById("ySlider");
 
-    const aSlider = document.getElementById("a");
-    const bSlider = document.getElementById("b");
-    const yMaxSlider = document.getElementById("yMaxSlider");
+const aVal = document.getElementById("aVal");
+const bVal = document.getElementById("bVal");
+const yVal = document.getElementById("yVal");
 
-    const aValue = document.getElementById("aValue");
-    const bValue = document.getElementById("bValue");
-    const yMaxValue = document.getElementById("yMaxValue");
-    const formula = document.getElementById("formula");
+const W = 900, H = 500;
 
-    const margin = { left: 70, right: 30, top: 30, bottom: 60 };
-    const plotWidth = canvas.width - margin.left - margin.right;
-    const plotHeight = canvas.height - margin.top - margin.bottom;
+const margin = {left:70, right:30, top:30, bottom:60};
 
-    const xMin = 0;
-    const xMax = 1;
+svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
 
-    function gammaFunc(z) {
-      const g = 7;
-      const p = [
-        0.99999999999980993,
-        676.5203681218851,
-        -1259.1392167224028,
-        771.32342877765313,
-        -176.61502916214059,
-        12.507343278686905,
-        -0.13857109526572012,
-        9.9843695780195716e-6,
-        1.5056327351493116e-7
-      ];
+function logGamma(z){
+  const c=[676.52,-1259.14,771.32,-176.62,12.51,-0.14,1e-5,1e-7];
+  if(z<0.5) return Math.log(Math.PI)-Math.log(Math.sin(Math.PI*z))-logGamma(1-z);
+  z-=1;
+  let x=0.9999999999998;
+  for(let i=0;i<c.length;i++) x+=c[i]/(z+i+1);
+  let t=z+c.length-0.5;
+  return 0.5*Math.log(2*Math.PI)+(z+0.5)*Math.log(t)-t+Math.log(x);
+}
 
-      if (z < 0.5) {
-        return Math.PI / (Math.sin(Math.PI * z) * gammaFunc(1 - z));
-      }
+function betaPDF(x,a,b){
+  if(x<=0||x>=1) return 0;
+  const logB = logGamma(a)+logGamma(b)-logGamma(a+b);
+  return Math.exp((a-1)*Math.log(x)+(b-1)*Math.log(1-x)-logB);
+}
 
-      z -= 1;
-      let x = p[0];
-      for (let i = 1; i < g + 2; i++) {
-        x += p[i] / (z + i);
-      }
-      const t = z + g + 0.5;
-      return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
-    }
+function xScale(x){
+  return margin.left + x*(W-margin.left-margin.right);
+}
 
-    function betaFunc(a, b) {
-      return gammaFunc(a) * gammaFunc(b) / gammaFunc(a + b);
-    }
+function yScale(y,yMax){
+  return H - margin.bottom - y/yMax*(H-margin.top-margin.bottom);
+}
 
-    function betaPdf(x, a, b) {
-      if (x <= 0 || x >= 1) return 0;
-      return Math.pow(x, a - 1) * Math.pow(1 - x, b - 1) / betaFunc(a, b);
-    }
+function draw(){
+  svg.innerHTML="";
 
-    function xToCanvas(x) {
-      return margin.left + ((x - xMin) / (xMax - xMin)) * plotWidth;
-    }
+  const a=parseFloat(aSlider.value);
+  const b=parseFloat(bSlider.value);
+  const userMaxY=parseFloat(ySlider.value);
 
-    function yToCanvas(y, yMax) {
-      return margin.top + plotHeight - (y / yMax) * plotHeight;
-    }
+  aVal.textContent=a.toFixed(1);
+  bVal.textContent=b.toFixed(1);
+  yVal.textContent=userMaxY.toFixed(1);
 
-    function drawAxes(yMax) {
-      ctx.strokeStyle = "#000";
-      ctx.lineWidth = 1;
+  let pts=[];
+  for(let i=1;i<999;i++){
+    let x=i/1000;
+    let y=betaPDF(x,a,b);
+    if(isFinite(y)) pts.push({x,y});
+  }
 
-      ctx.beginPath();
-      ctx.moveTo(margin.left, margin.top + plotHeight);
-      ctx.lineTo(margin.left + plotWidth, margin.top + plotHeight);
-      ctx.stroke();
+  const dataMaxY = Math.max(...pts.map(p=>p.y));
 
-      ctx.beginPath();
-      ctx.moveTo(margin.left, margin.top);
-      ctx.lineTo(margin.left, margin.top + plotHeight);
-      ctx.stroke();
+  // === FIX: exact top alignment ===
+  let plotMaxY;
+  if(dataMaxY > userMaxY){
+    plotMaxY = dataMaxY;   // curve touches top grid
+  } else {
+    plotMaxY = userMaxY;
+  }
 
-      ctx.fillStyle = "#000";
-      ctx.font = "14px Arial";
+  // GRID + Y TICKS
+  let ticks=5;
+  for(let i=0;i<=ticks;i++){
+    let yValTick = plotMaxY*i/ticks;
+    let yPos = yScale(yValTick,plotMaxY);
 
-      const xTicks = 4;
-      for (let i = 0; i <= xTicks; i++) {
-        const x = xMin + i * (xMax - xMin) / xTicks;
-        const cx = xToCanvas(x);
-        const cy = margin.top + plotHeight;
+    svg.appendChild(line(margin.left,yPos,W-margin.right,yPos,"grid"));
+    svg.appendChild(line(margin.left-5,yPos,margin.left,yPos,"tick"));
 
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx, cy + 6);
-        ctx.stroke();
+    svg.appendChild(text(margin.left-10,yPos+4,"end",yValTick.toFixed(2)));
+  }
 
-        ctx.textAlign = "center";
-        ctx.fillText(x.toFixed(2), cx, cy + 22);
-      }
+  // X GRID
+  for(let i=0;i<=10;i++){
+    let x=i/10;
+    let px=xScale(x);
 
-      const yTicks = 5;
-      for (let i = 0; i <= yTicks; i++) {
-        const y = i * yMax / yTicks;
-        const cx = margin.left;
-        const cy = yToCanvas(y, yMax);
+    svg.appendChild(line(px,margin.top,px,H-margin.bottom,"grid"));
+    svg.appendChild(line(px,H-margin.bottom,px,H-margin.bottom+5,"tick"));
 
-        ctx.beginPath();
-        ctx.moveTo(cx - 6, cy);
-        ctx.lineTo(cx, cy);
-        ctx.stroke();
+    svg.appendChild(text(px,H-margin.bottom+20,"middle",x.toFixed(1)));
+  }
 
-        ctx.textAlign = "right";
-        ctx.fillText(y.toFixed(2), cx - 10, cy + 4);
-      }
+  // AXES
+  svg.appendChild(line(margin.left,H-margin.bottom,W-margin.right,H-margin.bottom,"axis"));
+  svg.appendChild(line(margin.left,margin.top,margin.left,H-margin.bottom,"axis"));
 
-      ctx.font = "16px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText("x", margin.left + plotWidth / 2, canvas.height - 18);
+  // CURVE
+  let d="";
+  pts.forEach((p,i)=>{
+    let px=xScale(p.x);
+    let py=yScale(p.y,plotMaxY);
+    d += (i===0 ? "M":"L") + px + " " + py + " ";
+  });
 
-      ctx.save();
-      ctx.translate(22, margin.top + plotHeight / 2);
-      ctx.rotate(-Math.PI / 2);
-      ctx.fillText("f(x)", 0, 0);
-      ctx.restore();
-    }
+  let path=document.createElementNS("http://www.w3.org/2000/svg","path");
+  path.setAttribute("d",d);
+  path.setAttribute("class","pdf");
+  svg.appendChild(path);
+}
 
-    function drawCurve(a, b, yMax) {
-      ctx.strokeStyle = "#1f77b4";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
+function line(x1,y1,x2,y2,cls){
+  let l=document.createElementNS("http://www.w3.org/2000/svg","line");
+  l.setAttribute("x1",x1); l.setAttribute("y1",y1);
+  l.setAttribute("x2",x2); l.setAttribute("y2",y2);
+  l.setAttribute("class",cls);
+  return l;
+}
 
-      const steps = 1200;
-      let started = false;
+function text(x,y,anchor,str){
+  let t=document.createElementNS("http://www.w3.org/2000/svg","text");
+  t.setAttribute("x",x);
+  t.setAttribute("y",y);
+  t.setAttribute("text-anchor",anchor);
+  t.textContent=str;
+  return t;
+}
 
-      for (let i = 1; i < steps; i++) {
-        const x = xMin + (i / steps) * (xMax - xMin);
-        let y = betaPdf(x, a, b);
+aSlider.oninput=draw;
+bSlider.oninput=draw;
+ySlider.oninput=draw;
 
-        if (!Number.isFinite(y) || y > yMax * 10) {
-          y = yMax * 10;
-        }
+draw();
+</script>
 
-        const cx = xToCanvas(x);
-        const cy = yToCanvas(Math.min(y, yMax), yMax);
-
-        if (!started) {
-          ctx.moveTo(cx, cy);
-          started = true;
-        } else {
-          ctx.lineTo(cx, cy);
-        }
-      }
-
-      ctx.stroke();
-    }
-
-    function updatePlot() {
-      const a = parseFloat(aSlider.value);
-      const b = parseFloat(bSlider.value);
-      const yMax = parseFloat(yMaxSlider.value);
-
-      aValue.textContent = a.toFixed(1);
-      bValue.textContent = b.toFixed(1);
-      yMaxValue.textContent = yMax.toFixed(2);
-
-      formula.innerHTML =
-        "f(x) = (1 / B(" + a.toFixed(1) + ", " + b.toFixed(1) + ")) x^(" +
-        (a - 1).toFixed(1) + ") (1 - x)^(" + (b - 1).toFixed(1) + "),  0 < x < 1";
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawAxes(yMax);
-      drawCurve(a, b, yMax);
-    }
-
-    aSlider.addEventListener("input", updatePlot);
-    bSlider.addEventListener("input", updatePlot);
-    yMaxSlider.addEventListener("input", updatePlot);
-
-    updatePlot();
-  </script>
 </body>
 </html>
