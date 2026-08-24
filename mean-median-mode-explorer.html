@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mean, Median, and Mode Explorer</title>
+  <style>
+    :root {
+      --bg: #f7f7f7;
+      --panel: #ffffff;
+      --text: #222222;
+      --muted: #666666;
+      --line: #b8b8b8;
+      --point: #2f6fad;
+      --point-hover: #1f4f7c;
+      --accent: #333333;
+      --border: #dddddd;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 900px;
+      margin: 36px auto;
+      padding: 0 20px 40px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-size: 13px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .plot-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 18px 8px;
+    }
+
+    svg {
+      width: 100%;
+      height: 300px;
+      display: block;
+      touch-action: none;
+      user-select: none;
+    }
+
+    .axis {
+      stroke: var(--line);
+      stroke-width: 2;
+    }
+
+    .tick {
+      stroke: var(--line);
+      stroke-width: 1;
+    }
+
+    .tick-label {
+      font-size: 12px;
+      fill: var(--muted);
+      text-anchor: middle;
+    }
+
+    .point {
+      fill: var(--point);
+      cursor: grab;
+      transition: r 0.1s ease, fill 0.1s ease;
+    }
+
+    .point:hover,
+    .point.active {
+      fill: var(--point-hover);
+      r: 10;
+    }
+
+    .point:active {
+      cursor: grabbing;
+    }
+
+    .value-label {
+      font-size: 13px;
+      fill: var(--accent);
+      text-anchor: middle;
+      font-weight: 600;
+      pointer-events: none;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    button {
+      border: 1px solid #cfcfcf;
+      background: white;
+      color: #222;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #f0f0f0;
+    }
+
+    .values-row {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .values-row strong {
+      color: var(--text);
+    }
+
+    @media (max-width: 640px) {
+      .stats {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      svg {
+        height: 260px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Mean, Median, and Mode Explorer</h1>
+    <div class="subtitle">
+      Drag the dots horizontally to change values. The mean, median, and mode update immediately.
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Mean</div>
+        <div class="stat-value" id="meanValue">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Median</div>
+        <div class="stat-value" id="medianValue">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Mode</div>
+        <div class="stat-value" id="modeValue">—</div>
+      </div>
+    </div>
+
+    <div class="plot-card">
+      <svg id="plot" viewBox="0 0 840 300" role="img" aria-label="Draggable points on a horizontal number line">
+        <line id="axisLine" class="axis" x1="60" y1="170" x2="780" y2="170"></line>
+        <g id="ticks"></g>
+        <g id="points"></g>
+      </svg>
+
+      <div class="controls">
+        <button type="button" id="resetBtn">Reset</button>
+        <button type="button" id="addBtn">Add point</button>
+        <button type="button" id="removeBtn">Remove point</button>
+      </div>
+
+      <div class="values-row">
+        <strong>Data:</strong> <span id="dataValues"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const svg = document.getElementById("plot");
+      const ticksGroup = document.getElementById("ticks");
+      const pointsGroup = document.getElementById("points");
+      const meanEl = document.getElementById("meanValue");
+      const medianEl = document.getElementById("medianValue");
+      const modeEl = document.getElementById("modeValue");
+      const dataValuesEl = document.getElementById("dataValues");
+
+      const resetBtn = document.getElementById("resetBtn");
+      const addBtn = document.getElementById("addBtn");
+      const removeBtn = document.getElementById("removeBtn");
+
+      const xMin = 0;
+      const xMax = 20;
+      const left = 60;
+      const right = 780;
+      const axisY = 235;
+      const dotRadius = 9;
+      const stackGap = 6;
+      const stackStep = dotRadius * 2 + stackGap;
+
+      const initialValues = [2, 4, 6, 8, 8, 12, 15];
+      let values = initialValues.slice();
+
+      let dragIndex = null;
+      let activePointerId = null;
+
+      // Move the number line down for a dot plot.
+      document.getElementById("axisLine").setAttribute("y1", axisY);
+      document.getElementById("axisLine").setAttribute("y2", axisY);
+
+      function xScale(value) {
+        return left + ((value - xMin) / (xMax - xMin)) * (right - left);
+      }
+
+      function xInvert(px) {
+        return xMin + ((px - left) / (right - left)) * (xMax - xMin);
+      }
+
+      function clamp(v, lo, hi) {
+        return Math.max(lo, Math.min(hi, v));
+      }
+
+      function median(arr) {
+        const s = arr.slice().sort((a, b) => a - b);
+        const n = s.length;
+        if (n === 0) return NaN;
+        return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+      }
+
+      function modes(arr) {
+        const counts = new Map();
+        arr.forEach(v => counts.set(v, (counts.get(v) || 0) + 1));
+
+        let maxCount = 0;
+        counts.forEach(count => {
+          if (count > maxCount) maxCount = count;
+        });
+
+        if (maxCount <= 1) return [];
+
+        return [...counts.entries()]
+          .filter(([, count]) => count === maxCount)
+          .map(([value]) => value)
+          .sort((a, b) => a - b);
+      }
+
+      function computeStats() {
+        if (values.length === 0) {
+          meanEl.textContent = "—";
+          medianEl.textContent = "—";
+          modeEl.textContent = "—";
+          dataValuesEl.textContent = "No points";
+          return;
+        }
+
+        const mean = values.reduce((a, b) => a + b, 0) / values.length;
+        const med = median(values);
+        const modeList = modes(values);
+
+        meanEl.textContent = mean.toFixed(2).replace(/\.00$/, "");
+        medianEl.textContent = Number.isInteger(med) ? String(med) : med.toFixed(1);
+        modeEl.textContent = modeList.length ? modeList.join(", ") : "None";
+        dataValuesEl.textContent = values.slice().sort((a, b) => a - b).join(", ");
+      }
+
+      function renderTicks() {
+        ticksGroup.innerHTML = "";
+
+        for (let v = xMin; v <= xMax; v++) {
+          const x = xScale(v);
+
+          const tick = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          tick.setAttribute("x1", x);
+          tick.setAttribute("x2", x);
+          tick.setAttribute("y1", axisY - 6);
+          tick.setAttribute("y2", axisY + 6);
+          tick.setAttribute("class", "tick");
+          ticksGroup.appendChild(tick);
+
+          if (v % 2 === 0) {
+            const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            label.setAttribute("x", x);
+            label.setAttribute("y", axisY + 28);
+            label.setAttribute("class", "tick-label");
+            label.textContent = v;
+            ticksGroup.appendChild(label);
+          }
+        }
+      }
+
+      function getStackLevels() {
+        const levels = new Array(values.length).fill(0);
+        const countsSeen = new Map();
+
+        values.forEach((value, index) => {
+          const level = countsSeen.get(value) || 0;
+          levels[index] = level;
+          countsSeen.set(value, level + 1);
+        });
+
+        return levels;
+      }
+
+      function dotY(level) {
+        return axisY - dotRadius - 5 - level * stackStep;
+      }
+
+      function clientXToSvgX(clientX) {
+        const pt = svg.createSVGPoint();
+        pt.x = clientX;
+        pt.y = 0;
+        const ctm = svg.getScreenCTM();
+        if (!ctm) return left;
+        return pt.matrixTransform(ctm.inverse()).x;
+      }
+
+      function updateDotPositions() {
+        const levels = getStackLevels();
+
+        values.forEach((value, index) => {
+          const point = pointsGroup.querySelector(`circle[data-index="${index}"]`);
+          if (!point) return;
+
+          point.setAttribute("cx", xScale(value));
+          point.setAttribute("cy", dotY(levels[index]));
+          point.setAttribute("aria-valuenow", value);
+          point.setAttribute("aria-label", `Point ${index + 1}, value ${value}`);
+        });
+      }
+
+      function setValueFromClientX(index, clientX) {
+        const svgX = clamp(clientXToSvgX(clientX), left, right);
+        const newValue = clamp(Math.round(xInvert(svgX)), xMin, xMax);
+        values[index] = newValue;
+        updateDotPositions();
+        computeStats();
+      }
+
+      function renderPoints() {
+        pointsGroup.innerHTML = "";
+        const levels = getStackLevels();
+
+        values.forEach((value, i) => {
+          const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          circle.setAttribute("cx", xScale(value));
+          circle.setAttribute("cy", dotY(levels[i]));
+          circle.setAttribute("r", dotRadius);
+          circle.setAttribute("class", "point");
+          circle.setAttribute("data-index", i);
+          circle.setAttribute("tabindex", "0");
+          circle.setAttribute("role", "slider");
+          circle.setAttribute("aria-valuemin", xMin);
+          circle.setAttribute("aria-valuemax", xMax);
+          circle.setAttribute("aria-valuenow", value);
+          circle.setAttribute("aria-label", `Point ${i + 1}, value ${value}`);
+
+          circle.addEventListener("pointerdown", (event) => {
+            event.preventDefault();
+            dragIndex = i;
+            activePointerId = event.pointerId;
+            circle.classList.add("active");
+
+            try {
+              svg.setPointerCapture(event.pointerId);
+            } catch (_) {}
+
+            setValueFromClientX(i, event.clientX);
+          });
+
+          circle.addEventListener("keydown", (event) => {
+            if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+            event.preventDefault();
+
+            const delta = event.key === "ArrowLeft" ? -1 : 1;
+            values[i] = clamp(values[i] + delta, xMin, xMax);
+            updateDotPositions();
+            computeStats();
+          });
+
+          pointsGroup.appendChild(circle);
+        });
+      }
+
+      function moveDrag(event) {
+        if (dragIndex === null) return;
+        if (
+          activePointerId !== null &&
+          event.pointerId !== undefined &&
+          event.pointerId !== activePointerId
+        ) return;
+
+        event.preventDefault();
+        setValueFromClientX(dragIndex, event.clientX);
+      }
+
+      function endDrag(event) {
+        if (dragIndex === null) return;
+        if (
+          activePointerId !== null &&
+          event.pointerId !== undefined &&
+          event.pointerId !== activePointerId
+        ) return;
+
+        const point = pointsGroup.querySelector(`circle[data-index="${dragIndex}"]`);
+        if (point) point.classList.remove("active");
+
+        try {
+          if (activePointerId !== null && svg.hasPointerCapture(activePointerId)) {
+            svg.releasePointerCapture(activePointerId);
+          }
+        } catch (_) {}
+
+        dragIndex = null;
+        activePointerId = null;
+      }
+
+      svg.addEventListener("pointermove", moveDrag);
+      svg.addEventListener("pointerup", endDrag);
+      svg.addEventListener("pointercancel", endDrag);
+
+      document.addEventListener("pointermove", moveDrag, { passive: false });
+      document.addEventListener("pointerup", endDrag);
+      document.addEventListener("pointercancel", endDrag);
+
+      resetBtn.addEventListener("click", () => {
+        values = initialValues.slice();
+        dragIndex = null;
+        activePointerId = null;
+        renderPoints();
+        computeStats();
+      });
+
+      addBtn.addEventListener("click", () => {
+        if (values.length >= 20) return;
+        values.push(10);
+        renderPoints();
+        computeStats();
+      });
+
+      removeBtn.addEventListener("click", () => {
+        if (values.length <= 1) return;
+        values.pop();
+        renderPoints();
+        computeStats();
+      });
+
+      renderTicks();
+      renderPoints();
+      computeStats();
+    })();
+  </script>
+</body>
+</html>
