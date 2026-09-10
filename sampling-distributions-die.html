@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sampling Distributions: Four-Sided Die</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: light-dark(#f7f4ee, #171816);
+      --panel: light-dark(#fffdf9, #22231f);
+      --text: light-dark(#1e2824, #f1f3ec);
+      --muted: light-dark(#64706a, #aeb7af);
+      --line: light-dark(#d8ddd6, #454a43);
+      --grid: light-dark(#e9ece7, #343832);
+      --mean: light-dark(#286d65, #69c5b8);
+      --minimum: light-dark(#bf6b32, #eea06b);
+      --sd: light-dark(#6f5796, #b99be8);
+      --button: light-dark(#243e38, #dbe8de);
+      --button-text: light-dark(#ffffff, #14221e);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); }
+    main { width: min(1100px, calc(100% - 32px)); margin: 34px auto 48px; }
+    h1 { margin: 0 0 6px; font-size: clamp(1.65rem, 4vw, 2.45rem); font-weight: 650; letter-spacing: -.025em; }
+    .intro { margin: 0 0 24px; color: var(--muted); }
+    .controls { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)) 1.2fr auto; gap: 18px; align-items: end; padding: 20px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+    .control label, .stat-title { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 8px; font-size: .9rem; font-weight: 600; }
+    input[type="range"] { width: 100%; accent-color: var(--mean); }
+    .checks { display: flex; flex-wrap: wrap; gap: 10px 18px; min-height: 38px; align-items: center; }
+    .check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+    .check input { width: 18px; height: 18px; accent-color: var(--mean); }
+    #showMinimum { accent-color: var(--minimum); }
+    #showSD { accent-color: var(--sd); }
+    button { min-height: 42px; padding: 0 18px; border: 0; border-radius: 9px; background: var(--button); color: var(--button-text); font: inherit; font-weight: 650; cursor: pointer; }
+    button:hover { filter: brightness(1.08); }
+    button:focus-visible, input:focus-visible { outline: 3px solid var(--minimum); outline-offset: 2px; }
+    .status { min-height: 25px; margin: 14px 2px 8px; color: var(--muted); font-size: .92rem; }
+    .charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 1fr; gap: 18px; }
+    .chart-panel { min-width: 0; padding: 18px 16px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+    .chart-panel[hidden] { display: none; }
+    .chart-heading { display: flex; min-height: 48px; justify-content: space-between; gap: 10px; align-items: baseline; margin: 0 4px 8px; }
+    .chart-heading h2 { margin: 0; font-size: 1.05rem; font-weight: 650; }
+    .summary { color: var(--muted); font-size: .82rem; font-variant-numeric: tabular-nums; text-align: right; }
+    svg { width: 100%; height: auto; display: block; overflow: visible; }
+    .grid-line { stroke: var(--grid); stroke-width: 1; }
+    .axis-line { stroke: var(--line); stroke-width: 1; }
+    .tick-label, .axis-label { fill: var(--muted); font-size: 12px; }
+    .axis-label { font-weight: 600; }
+    .bar-mean { fill: var(--mean); }
+    .bar-minimum { fill: var(--minimum); }
+    .bar-sd { fill: var(--sd); }
+    .bar-population { fill: var(--mean); opacity: .78; }
+    .bar { transition: opacity .15s ease; }
+    .bar:hover { opacity: .72; }
+    .bar-label { fill: var(--text); font-size: 11px; font-variant-numeric: tabular-nums; pointer-events: none; }
+    .empty { padding: 54px 16px; text-align: center; color: var(--muted); background: var(--panel); border: 1px dashed var(--line); border-radius: 14px; }
+    .note { margin: 16px 2px 0; color: var(--muted); font-size: .88rem; }
+    @media (max-width: 800px) {
+      .controls { grid-template-columns: 1fr 1fr; }
+      .charts { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 520px) {
+      main { width: min(100% - 20px, 1100px); margin-top: 22px; }
+      .controls { grid-template-columns: 1fr; }
+      button { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) { .bar { transition: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Sampling Distributions</h1>
+    <p class="intro">Repeatedly roll a fair four-sided die and observe how a statistic varies from sample to sample.</p>
+
+    <section class="controls" aria-label="Simulation controls">
+      <div class="control">
+        <label for="sampleSize"><span>Sample size, n</span><output id="sampleSizeValue">5</output></label>
+        <input id="sampleSize" type="range" min="2" max="30" value="5" step="1">
+      </div>
+      <div class="control">
+        <label for="repetitions"><span>Number of samples</span><output id="repetitionsValue">1,000</output></label>
+        <input id="repetitions" type="range" min="100" max="10000" value="1000" step="100">
+      </div>
+      <fieldset style="border:0;padding:0;margin:0;min-width:0">
+        <legend class="stat-title">Display</legend>
+        <div class="checks">
+          <label class="check"><input id="showPopulation" type="checkbox" checked> Underlying PMF</label>
+          <label class="check"><input id="showMean" type="checkbox" checked> Sample mean</label>
+          <label class="check"><input id="showMinimum" type="checkbox"> Sample minimum</label>
+          <label class="check"><input id="showSD" type="checkbox"> Sample standard deviation</label>
+        </div>
+      </fieldset>
+      <button id="simulate" type="button">Run simulation</button>
+    </section>
+
+    <div id="status" class="status" aria-live="polite"></div>
+    <section id="charts" class="charts" aria-label="Simulated sampling distributions">
+      <article id="populationPanel" class="chart-panel">
+        <div class="chart-heading">
+          <h2>PMF of the underlying distribution</h2>
+          <div class="summary">P(X = x) = 0.25</div>
+        </div>
+        <svg id="populationChart" viewBox="0 0 520 350" role="img" aria-label="Probability mass function of a fair four-sided die"></svg>
+      </article>
+      <article id="meanPanel" class="chart-panel">
+        <div class="chart-heading"><h2>Sampling distribution of the mean</h2><div id="meanSummary" class="summary"></div></div>
+        <svg id="meanChart" viewBox="0 0 520 350" role="img" aria-label="Bar chart of simulated sample means"></svg>
+      </article>
+      <article id="minimumPanel" class="chart-panel" hidden>
+        <div class="chart-heading"><h2>Sampling distribution of the minimum</h2><div id="minimumSummary" class="summary"></div></div>
+        <svg id="minimumChart" viewBox="0 0 520 350" role="img" aria-label="Bar chart of simulated sample minimums"></svg>
+      </article>
+      <article id="sdPanel" class="chart-panel" hidden>
+        <div class="chart-heading"><h2>Sampling distribution of the standard deviation</h2><div id="sdSummary" class="summary"></div></div>
+        <svg id="sdChart" viewBox="0 0 520 350" role="img" aria-label="Bar chart of simulated sample standard deviations"></svg>
+      </article>
+      <div id="emptyState" class="empty" hidden>Select at least one plot.</div>
+    </section>
+    <p class="note">Each bar shows the relative frequency across all simulated samples. Run the simulation again to obtain a new result.</p>
+  </main>
+
+  <script>
+    const sampleSize = document.getElementById('sampleSize');
+    const repetitions = document.getElementById('repetitions');
+    const showPopulation = document.getElementById('showPopulation');
+    const showMean = document.getElementById('showMean');
+    const showMinimum = document.getElementById('showMinimum');
+    const showSD = document.getElementById('showSD');
+    const populationPanel = document.getElementById('populationPanel');
+    const meanPanel = document.getElementById('meanPanel');
+    const minimumPanel = document.getElementById('minimumPanel');
+    const sdPanel = document.getElementById('sdPanel');
+    const emptyState = document.getElementById('emptyState');
+
+    sampleSize.addEventListener('input', () => document.getElementById('sampleSizeValue').value = sampleSize.value);
+    repetitions.addEventListener('input', () => document.getElementById('repetitionsValue').value = Number(repetitions.value).toLocaleString());
+    showPopulation.addEventListener('change', updateVisibility);
+    showMean.addEventListener('change', updateVisibility);
+    showMinimum.addEventListener('change', updateVisibility);
+    showSD.addEventListener('change', updateVisibility);
+    document.getElementById('simulate').addEventListener('click', simulate);
+
+    function updateVisibility() {
+      populationPanel.hidden = !showPopulation.checked;
+      meanPanel.hidden = !showMean.checked;
+      minimumPanel.hidden = !showMinimum.checked;
+      sdPanel.hidden = !showSD.checked;
+      emptyState.hidden = showPopulation.checked || showMean.checked || showMinimum.checked || showSD.checked;
+    }
+
+    function simulate() {
+      const n = Number(sampleSize.value);
+      const m = Number(repetitions.value);
+      const meanCounts = new Map();
+      const minCounts = new Map([[1,0],[2,0],[3,0],[4,0]]);
+      const means = [];
+      const mins = [];
+      const sds = [];
+
+      for (let j = 0; j < m; j++) {
+        let sum = 0;
+        let sumSquares = 0;
+        let min = 4;
+        for (let i = 0; i < n; i++) {
+          const roll = Math.floor(Math.random() * 4) + 1;
+          sum += roll;
+          sumSquares += roll * roll;
+          if (roll < min) min = roll;
+        }
+        const meanKey = sum;
+        meanCounts.set(meanKey, (meanCounts.get(meanKey) || 0) + 1);
+        minCounts.set(min, minCounts.get(min) + 1);
+        const sampleMean = sum / n;
+        const sampleSD = Math.sqrt(Math.max(0, (sumSquares - sum * sum / n) / (n - 1)));
+        means.push(sampleMean);
+        mins.push(min);
+        sds.push(sampleSD);
+      }
+
+      const meanData = Array.from(meanCounts, ([sum, count]) => ({ value: sum / n, count })).sort((a,b) => a.value-b.value);
+      drawChart('meanChart', meanData, m, 'bar-mean', 'Sample mean');
+      document.getElementById('meanSummary').textContent = `mean = ${avg(means).toFixed(3)} · SD = ${sd(means).toFixed(3)}`;
+
+      const minimumData = Array.from(minCounts, ([value, count]) => ({ value, count }));
+      drawChart('minimumChart', minimumData, m, 'bar-minimum', 'Sample minimum');
+      document.getElementById('minimumSummary').textContent = `mean = ${avg(mins).toFixed(3)} · SD = ${sd(mins).toFixed(3)}`;
+
+      const sdBinWidth = 0.025;
+      const sdData = binValues(sds, sdBinWidth);
+      drawChart('sdChart', sdData, m, 'bar-sd', 'Sample standard deviation');
+      document.getElementById('sdSummary').textContent = `mean = ${avg(sds).toFixed(3)} · SD = ${sd(sds).toFixed(3)} · class width = ${sdBinWidth}`;
+      document.getElementById('status').textContent = `${m.toLocaleString()} samples simulated, with ${n} roll${n === 1 ? '' : 's'} in each sample.`;
+    }
+
+    function avg(values) { return values.reduce((a,b) => a+b, 0) / values.length; }
+    function sd(values) {
+      const center = avg(values);
+      return Math.sqrt(values.reduce((s,x) => s + (x-center) ** 2, 0) / (values.length - 1));
+    }
+
+    function binValues(values, binWidth) {
+      const numberOfBins = Math.max(1, Math.ceil(Math.max(...values) / binWidth));
+      const counts = Array(numberOfBins).fill(0);
+      values.forEach(value => {
+        const index = Math.min(Math.floor(value / binWidth), numberOfBins - 1);
+        counts[index] += 1;
+      });
+      return counts.map((count, index) => ({
+        value: (index + 0.5) * binWidth,
+        count
+      }));
+    }
+
+    function drawChart(id, data, total, colorClass, xLabel, yLabel = 'Relative frequency') {
+      const svg = document.getElementById(id);
+      svg.replaceChildren();
+      const NS = 'http://www.w3.org/2000/svg';
+      const W = 520, H = 350, margin = {top: 28, right: 15, bottom: 55, left: 58};
+      const width = W - margin.left - margin.right;
+      const height = H - margin.top - margin.bottom;
+      const maxP = Math.max(...data.map(d => d.count / total), .01);
+      const yMax = niceCeiling(maxP);
+      const gap = data.length > 15 ? 1 : 5;
+      const barW = Math.max(1, width / data.length - gap);
+
+      for (let k = 0; k <= 4; k++) {
+        const p = yMax * k / 4;
+        const y = margin.top + height - height * p / yMax;
+        add('line', {x1:margin.left, x2:W-margin.right, y1:y, y2:y, class:'grid-line'});
+        addText(margin.left - 8, y + 4, `${Math.round(p*100)}%`, 'tick-label', 'end');
+      }
+      add('line', {x1:margin.left, x2:margin.left, y1:margin.top, y2:margin.top+height, class:'axis-line'});
+      add('line', {x1:margin.left, x2:W-margin.right, y1:margin.top+height, y2:margin.top+height, class:'axis-line'});
+
+      data.forEach((d, i) => {
+        const p = d.count / total;
+        const x = margin.left + i * width / data.length + gap/2;
+        const h = height * p / yMax;
+        const rect = add('rect', {x, y:margin.top+height-h, width:barW, height:h, rx:1.5, class:`bar ${colorClass}`});
+        const valueText = Number.isInteger(d.value) ? d.value : d.value.toFixed(2).replace(/0$/, '');
+        rect.setAttribute('aria-label', `${xLabel} ${valueText}: ${(p*100).toFixed(1)} percent`);
+        const tickEvery = data.length <= 12 ? 1 : Math.ceil(data.length / 8);
+        if (i % tickEvery === 0 || i === data.length - 1) addText(x + barW/2, margin.top+height+19, valueText, 'tick-label', 'middle');
+        if (data.length <= 8 && h > 18) addText(x + barW/2, margin.top+height-h-6, `${(p*100).toFixed(1)}%`, 'bar-label', 'middle');
+      });
+      addText(margin.left + width/2, H-12, xLabel, 'axis-label', 'middle');
+      const yTitle = addText(14, margin.top + height/2, yLabel, 'axis-label', 'middle');
+      yTitle.setAttribute('transform', `rotate(-90 14 ${margin.top + height/2})`);
+
+      function add(tag, attrs) {
+        const el = document.createElementNS(NS, tag);
+        Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k,v));
+        svg.appendChild(el); return el;
+      }
+      function addText(x,y,text,cls,anchor) {
+        const el = add('text', {x,y,class:cls,'text-anchor':anchor});
+        el.textContent = text; return el;
+      }
+    }
+
+    function niceCeiling(x) {
+      const step = x <= .1 ? .025 : x <= .25 ? .05 : x <= .5 ? .1 : .2;
+      return Math.ceil(x / step) * step;
+    }
+
+    drawChart('populationChart', [
+      {value: 1, count: 1},
+      {value: 2, count: 1},
+      {value: 3, count: 1},
+      {value: 4, count: 1}
+    ], 4, 'bar-population', 'Die outcome, x', 'Probability');
+    updateVisibility();
+    simulate();
+  </script>
+</body>
+</html>
