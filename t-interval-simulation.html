@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>T-Interval Generator</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --border: #d1d5db;
+      --accent: #2563eb;
+      --good: #15803d;
+      --bad: #b91c1c;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.05);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.9rem;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+      align-items: end;
+    }
+
+    label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 6px;
+      font-size: 0.95rem;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-size: 1rem;
+    }
+
+    input[type="range"] {
+      padding: 0;
+      border: none;
+      border-radius: 0;
+    }
+
+    .slider-value {
+      margin-top: 6px;
+      font-size: 0.92rem;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    button {
+      background: var(--accent);
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      margin-top: 0;
+    }
+
+    button:hover { opacity: 0.94; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .stat {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      background: #fbfcff;
+    }
+
+    .stat .label {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .stat .value {
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+
+    #plot {
+      width: 100%;
+      height: 560px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: white;
+      margin-top: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+      font-size: 0.95rem;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    th { background: #f8fafc; }
+
+    .good { color: var(--good); font-weight: 700; }
+    .bad { color: var(--bad); font-weight: 700; }
+    .note {
+      margin-top: 14px;
+      font-size: 0.92rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Interactive T-Interval Generator</h1>
+      <p>
+        This app simulates repeated samples from a normal population and constructs <strong>one-sample t confidence intervals for the population mean</strong> (using the sample standard deviation).
+        The plot scale stays fixed for a given simulated sample set so you can compare interval widths directly.
+        Changing <strong>confidence level</strong> updates the intervals without regenerating the sample data.
+        Changing <strong>μ</strong>, <strong>σ</strong>, <strong>n</strong>, or <strong>number of samples</strong> generates a new simulation.
+      </p>
+
+      <div class="grid">
+        <div>
+          <label for="mu">Population mean (μ)</label>
+          <input id="mu" type="number" value="0" step="0.1" />
+        </div>
+        <div>
+          <label for="n">Sample size (n)</label>
+          <input id="n" type="range" min="2" max="300" step="1" value="25" />
+          <div id="nValue" class="slider-value">25</div>
+        </div>
+        <div>
+          <label for="conf">Confidence level</label>
+          <input id="conf" type="range" min="80" max="99" step="1" value="95" />
+          <div id="confValue" class="slider-value">95%</div>
+        </div>
+        <div>
+          <label for="sigma">Population standard deviation (σ)</label>
+          <input id="sigma" type="range" min="0.2" max="5" step="0.1" value="1" />
+          <div id="sigmaValue" class="slider-value">1.0</div>
+        </div>
+        <div>
+          <label for="numSamples">Number of samples</label>
+          <input id="numSamples" type="number" value="50" min="1" max="300" step="1" />
+        </div>
+        <div>
+          <button id="generateBtn">Generate new samples</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="label">Current σ</div>
+          <div id="sigmaStat" class="value">1.0</div>
+        </div>
+        <div class="stat">
+          <div class="label">df = n - 1</div>
+          <div id="dfValue" class="value">24</div>
+        </div>
+        <div class="stat">
+          <div class="label">t critical value</div>
+          <div id="tValue" class="value">2.0639</div>
+        </div>
+        <div class="stat">
+          <div class="label">Intervals containing μ</div>
+          <div id="captured" class="value">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Capture rate</div>
+          <div id="captureRate" class="value">—</div>
+        </div>
+        <div class="stat">
+          <div class="label">Average margin of error</div>
+          <div id="avgMargin" class="value">—</div>
+        </div>
+      </div>
+
+      <canvas id="plot"></canvas>
+      <div class="note">
+        Each interval is \( \bar{x} \pm t_{\alpha/2,\,n-1}\, s/\sqrt{n} \). Green intervals contain the true mean μ; red intervals do not.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;">First 15 intervals</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Sample</th>
+            <th>Sample mean</th>
+            <th>Sample s</th>
+            <th>Lower bound</th>
+            <th>Upper bound</th>
+            <th>Contains μ?</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      mu: 0,
+      n: 25,
+      conf: 0.95,
+      sigma: 1,
+      numSamples: 50,
+      sampleStats: [],
+      intervals: [],
+      fixedRange: null
+    };
+
+    function erf(x) {
+      const sign = x >= 0 ? 1 : -1;
+      x = Math.abs(x);
+      const a1 = 0.254829592;
+      const a2 = -0.284496736;
+      const a3 = 1.421413741;
+      const a4 = -1.453152027;
+      const a5 = 1.061405429;
+      const p = 0.3275911;
+      const t = 1 / (1 + p * x);
+      const y = 1 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+      return sign * y;
+    }
+
+    function normalCDF(x) {
+      return 0.5 * (1 + erf(x / Math.sqrt(2)));
+    }
+
+    function inverseNormalCDF(p) {
+      if (p <= 0 || p >= 1) return NaN;
+      let low = -10, high = 10;
+      for (let i = 0; i < 100; i++) {
+        const mid = (low + high) / 2;
+        if (normalCDF(mid) < p) low = mid;
+        else high = mid;
+      }
+      return (low + high) / 2;
+    }
+
+    // Lanczos approximation for log-gamma
+    function logGamma(z) {
+      const coeffs = [
+        676.5203681218851,
+        -1259.1392167224028,
+        771.3234287776531,
+        -176.6150291621406,
+        12.507343278686905,
+        -0.13857109526572012,
+        9.984369578019572e-6,
+        1.5056327351493116e-7
+      ];
+      if (z < 0.5) {
+        return Math.log(Math.PI) - Math.log(Math.sin(Math.PI * z)) - logGamma(1 - z);
+      }
+      z -= 1;
+      let x = 0.9999999999998099;
+      for (let i = 0; i < coeffs.length; i++) {
+        x += coeffs[i] / (z + i + 1);
+      }
+      const t = z + coeffs.length - 0.5;
+      return 0.9189385332046727 + (z + 0.5) * Math.log(t) - t + Math.log(x);
+    }
+
+    function betacf(a, b, x) {
+      const MAXIT = 200;
+      const EPS = 3e-12;
+      const FPMIN = 1e-30;
+      let qab = a + b;
+      let qap = a + 1;
+      let qam = a - 1;
+      let c = 1;
+      let d = 1 - qab * x / qap;
+      if (Math.abs(d) < FPMIN) d = FPMIN;
+      d = 1 / d;
+      let h = d;
+      for (let m = 1; m <= MAXIT; m++) {
+        let m2 = 2 * m;
+        let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+        d = 1 + aa * d;
+        if (Math.abs(d) < FPMIN) d = FPMIN;
+        c = 1 + aa / c;
+        if (Math.abs(c) < FPMIN) c = FPMIN;
+        d = 1 / d;
+        h *= d * c;
+        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+        d = 1 + aa * d;
+        if (Math.abs(d) < FPMIN) d = FPMIN;
+        c = 1 + aa / c;
+        if (Math.abs(c) < FPMIN) c = FPMIN;
+        d = 1 / d;
+        const del = d * c;
+        h *= del;
+        if (Math.abs(del - 1) < EPS) break;
+      }
+      return h;
+    }
+
+    function regularizedIncompleteBeta(x, a, b) {
+      if (x <= 0) return 0;
+      if (x >= 1) return 1;
+      const bt = Math.exp(logGamma(a + b) - logGamma(a) - logGamma(b) + a * Math.log(x) + b * Math.log(1 - x));
+      if (x < (a + 1) / (a + b + 2)) {
+        return bt * betacf(a, b, x) / a;
+      }
+      return 1 - bt * betacf(b, a, 1 - x) / b;
+    }
+
+    function tCDF(t, df) {
+      if (df <= 0) return NaN;
+      if (t === 0) return 0.5;
+      const x = df / (df + t * t);
+      const ib = regularizedIncompleteBeta(x, df / 2, 0.5);
+      return t > 0 ? 1 - 0.5 * ib : 0.5 * ib;
+    }
+
+    function inverseTCDF(p, df) {
+      if (p <= 0 || p >= 1 || df <= 0) return NaN;
+      if (p === 0.5) return 0;
+      let low = -50, high = 50;
+      for (let i = 0; i < 200; i++) {
+        const mid = (low + high) / 2;
+        if (tCDF(mid, df) < p) low = mid;
+        else high = mid;
+      }
+      return (low + high) / 2;
+    }
+
+    function randn() {
+      let u = 0, v = 0;
+      while (u === 0) u = Math.random();
+      while (v === 0) v = Math.random();
+      return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    }
+
+    function readControls() {
+      state.mu = parseFloat(document.getElementById('mu').value);
+      state.n = parseInt(document.getElementById('n').value, 10);
+      state.conf = parseInt(document.getElementById('conf').value, 10) / 100;
+      state.sigma = parseFloat(document.getElementById('sigma').value);
+      state.numSamples = parseInt(document.getElementById('numSamples').value, 10);
+    }
+
+    function updateSliderLabels() {
+      document.getElementById('nValue').textContent = state.n;
+      document.getElementById('confValue').textContent = `${Math.round(state.conf * 100)}%`;
+      document.getElementById('sigmaValue').textContent = state.sigma.toFixed(1);
+      document.getElementById('sigmaStat').textContent = state.sigma.toFixed(1);
+      document.getElementById('dfValue').textContent = Math.max(1, state.n - 1);
+    }
+
+    function generateSampleStats() {
+      if (!Number.isFinite(state.mu) || !Number.isInteger(state.n) || state.n < 2 || !Number.isInteger(state.numSamples) || state.numSamples <= 0 || !Number.isFinite(state.sigma) || state.sigma <= 0) {
+        alert('Please enter valid inputs.');
+        return false;
+      }
+
+      state.sampleStats = [];
+      for (let i = 0; i < state.numSamples; i++) {
+        const sample = [];
+        for (let j = 0; j < state.n; j++) {
+          sample.push(state.mu + state.sigma * randn());
+        }
+        const xbar = sample.reduce((a, b) => a + b, 0) / state.n;
+        let ss = 0;
+        for (const x of sample) {
+          ss += (x - xbar) * (x - xbar);
+        }
+        const s = Math.sqrt(ss / (state.n - 1));
+        state.sampleStats.push({ xbar, s });
+      }
+      return true;
+    }
+
+    function recomputeIntervals() {
+      if (!Number.isFinite(state.mu) || !Number.isInteger(state.n) || state.n < 2 || state.sampleStats.length === 0) {
+        return;
+      }
+
+      const df = state.n - 1;
+      const tCrit = inverseTCDF(1 - (1 - state.conf) / 2, df);
+      document.getElementById('tValue').textContent = tCrit.toFixed(4);
+      document.getElementById('dfValue').textContent = df;
+
+      state.intervals = state.sampleStats.map((d, i) => {
+        const margin = tCrit * d.s / Math.sqrt(state.n);
+        const lower = d.xbar - margin;
+        const upper = d.xbar + margin;
+        return {
+          sample: i + 1,
+          xbar: d.xbar,
+          s: d.s,
+          margin,
+          lower,
+          upper,
+          contains: lower <= state.mu && state.mu <= upper
+        };
+      });
+
+      if (!state.fixedRange && state.intervals.length) {
+        const minX = Math.min(...state.intervals.map(d => d.lower), state.mu);
+        const maxX = Math.max(...state.intervals.map(d => d.upper), state.mu);
+        const span = (maxX - minX) || 1;
+        state.fixedRange = {
+          xMin: minX - 0.1 * span,
+          xMax: maxX + 0.1 * span
+        };
+      }
+
+      const captured = state.intervals.filter(d => d.contains).length;
+      document.getElementById('captured').textContent = `${captured} / ${state.intervals.length}`;
+      document.getElementById('captureRate').textContent = state.intervals.length
+        ? `${(100 * captured / state.intervals.length).toFixed(1)}%`
+        : '—';
+
+      const avgMargin = state.intervals.length
+        ? state.intervals.reduce((sum, d) => sum + d.margin, 0) / state.intervals.length
+        : NaN;
+      document.getElementById('avgMargin').textContent = Number.isFinite(avgMargin)
+        ? avgMargin.toFixed(4)
+        : '—';
+
+      renderTable();
+      drawPlot();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('resultsBody');
+      tbody.innerHTML = '';
+      state.intervals.slice(0, 15).forEach(d => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${d.sample}</td>
+          <td>${d.xbar.toFixed(4)}</td>
+          <td>${d.s.toFixed(4)}</td>
+          <td>${d.lower.toFixed(4)}</td>
+          <td>${d.upper.toFixed(4)}</td>
+          <td class="${d.contains ? 'good' : 'bad'}">${d.contains ? 'Yes' : 'No'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function drawPlot() {
+      const intervals = state.intervals;
+      const mu = state.mu;
+      const canvas = document.getElementById('plot');
+      const ctx = canvas.getContext('2d');
+      const ratio = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * ratio;
+      canvas.height = rect.height * ratio;
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+      const width = rect.width;
+      const height = rect.height;
+      ctx.clearRect(0, 0, width, height);
+
+      if (!intervals.length) return;
+
+      const paddingLeft = 70;
+      const paddingRight = 30;
+      const paddingTop = 20;
+      const paddingBottom = 40;
+      const plotW = width - paddingLeft - paddingRight;
+      const plotH = height - paddingTop - paddingBottom;
+
+      let xMin, xMax;
+      if (state.fixedRange) {
+        xMin = state.fixedRange.xMin;
+        xMax = state.fixedRange.xMax;
+      } else {
+        const minX = Math.min(...intervals.map(d => d.lower), mu);
+        const maxX = Math.max(...intervals.map(d => d.upper), mu);
+        const span = (maxX - minX) || 1;
+        xMin = minX - 0.1 * span;
+        xMax = maxX + 0.1 * span;
+      }
+
+      function xScale(x) {
+        return paddingLeft + (x - xMin) / (xMax - xMin) * plotW;
+      }
+
+      const rowH = plotH / intervals.length;
+
+      ctx.strokeStyle = '#111827';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(paddingLeft, height - paddingBottom);
+      ctx.lineTo(width - paddingRight, height - paddingBottom);
+      ctx.stroke();
+
+      const ticks = 6;
+      ctx.fillStyle = '#374151';
+      ctx.font = '12px Arial';
+      for (let i = 0; i <= ticks; i++) {
+        const x = xMin + (xMax - xMin) * i / ticks;
+        const px = xScale(x);
+        ctx.beginPath();
+        ctx.moveTo(px, height - paddingBottom);
+        ctx.lineTo(px, height - paddingBottom + 6);
+        ctx.stroke();
+        ctx.fillText(x.toFixed(2), px - 14, height - 12);
+      }
+
+      const muX = xScale(mu);
+      ctx.strokeStyle = '#2563eb';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(muX, paddingTop);
+      ctx.lineTo(muX, height - paddingBottom);
+      ctx.stroke();
+      ctx.fillStyle = '#2563eb';
+      ctx.fillText('μ', muX + 6, paddingTop + 14);
+
+      intervals.forEach((d, i) => {
+        const y = paddingTop + rowH * (i + 0.5);
+        const x1 = xScale(d.lower);
+        const x2 = xScale(d.upper);
+        ctx.strokeStyle = d.contains ? '#15803d' : '#b91c1c';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x2, y);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y - 5);
+        ctx.lineTo(x1, y + 5);
+        ctx.moveTo(x2, y - 5);
+        ctx.lineTo(x2, y + 5);
+        ctx.stroke();
+
+        const xm = xScale(d.xbar);
+        ctx.fillStyle = d.contains ? '#15803d' : '#b91c1c';
+        ctx.beginPath();
+        ctx.arc(xm, y, 3, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+    }
+
+    function fullRegenerate() {
+      readControls();
+      updateSliderLabels();
+      state.fixedRange = null;
+      if (generateSampleStats()) {
+        recomputeIntervals();
+      }
+    }
+
+    function updateConfidenceOnly() {
+      readControls();
+      updateSliderLabels();
+      recomputeIntervals();
+    }
+
+    document.getElementById('generateBtn').addEventListener('click', fullRegenerate);
+    document.getElementById('mu').addEventListener('change', fullRegenerate);
+    document.getElementById('numSamples').addEventListener('change', fullRegenerate);
+    document.getElementById('n').addEventListener('input', fullRegenerate);
+    document.getElementById('sigma').addEventListener('input', fullRegenerate);
+    document.getElementById('conf').addEventListener('input', updateConfidenceOnly);
+
+    window.addEventListener('resize', () => {
+      updateSliderLabels();
+      drawPlot();
+    });
+
+    fullRegenerate();
+  </script>
+</body>
+</html>
